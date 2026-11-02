@@ -20,7 +20,7 @@ export const sql = (query: string) => kodu<SqlResult>('meta/v1/query', json('POS
 
 export { qi, ql } from './quote.mjs'
 
-export type Column = { name: string; type: string; nullable: boolean; default: string | null; primary_key: boolean }
+export type Column = { name: string; type: string; nullable: boolean; default: string | null; primary_key: boolean; identity?: boolean }
 export type TableInfo = { name: string; rls_enabled: boolean; rows_estimate: number; bytes: number; realtime: boolean; comment: string | null }
 
 export const fmtBytes = (n: number) => {

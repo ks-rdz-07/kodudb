@@ -69,15 +69,64 @@ fn col_type<'a>(cols: &'a [(String, String)], name: &str) -> R<&'a str> {
         .ok_or_else(|| err(StatusCode::BAD_REQUEST, format!("unknown column: {name}")))
 }
 
-/// `col=op.value` filters: eq neq gt gte lt lte like ilike is in, optional `not.` prefix.
+/// `col=op.value` filters: eq neq gt gte lt lte like ilike is in, optional `not.` prefix, all combined with
+/// `and`. `or=(col.op.value,col.op.value)` matches when any of its filters matches (values may be "quoted").
 pub fn filters(params: &[(String, String)], cols: &[(String, String)], binds: &mut Vec<Bind>) -> R<String> {
     let mut parts = Vec::new();
     for (k, v) in params {
         if RESERVED.contains(&k.as_str()) {
             continue;
         }
+        if k == "or" {
+            let inner = v.strip_prefix('(').and_then(|s| s.strip_suffix(')'))
+                .ok_or_else(|| err(StatusCode::BAD_REQUEST, "or= needs (col.op.value,...)"))?;
+            let mut any = Vec::new();
+            for item in split_top_level(inner) {
+                let (col, rest) = item.split_once('.').ok_or_else(|| err(StatusCode::BAD_REQUEST, format!("bad or= filter: {item}")))?;
+                any.push(filter_expr(col, &unquote_value(rest), cols, binds)?);
+            }
+            if any.is_empty() {
+                return Err(err(StatusCode::BAD_REQUEST, "or= needs at least one filter"));
+            }
+            parts.push(format!("({})", any.join(" or ")));
+            continue;
+        }
+        parts.push(filter_expr(k, v, cols, binds)?);
+    }
+    Ok(if parts.is_empty() { "true".into() } else { parts.join(" and ") })
+}
+
+/// Split on commas that are not inside parentheses or double quotes.
+fn split_top_level(s: &str) -> Vec<String> {
+    let (mut out, mut cur, mut depth, mut quoted) = (Vec::new(), String::new(), 0i32, false);
+    for c in s.chars() {
+        match c {
+            '"' => { quoted = !quoted; cur.push(c) }
+            '(' if !quoted => { depth += 1; cur.push(c) }
+            ')' if !quoted => { depth -= 1; cur.push(c) }
+            ',' if !quoted && depth == 0 => out.push(std::mem::take(&mut cur)),
+            _ => cur.push(c),
+        }
+    }
+    if !cur.trim().is_empty() {
+        out.push(cur);
+    }
+    out.into_iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+}
+
+/// `ilike."a,b"` -> `ilike.a,b`: drop the quotes that protect commas inside an or= value.
+fn unquote_value(rest: &str) -> String {
+    match rest.split_once('.') {
+        Some((op, val)) if val.len() >= 2 && val.starts_with('"') && val.ends_with('"') => format!("{op}.{}", &val[1..val.len() - 1]),
+        _ => rest.to_string(),
+    }
+}
+
+/// One `col` + `op.value` filter as SQL, with the value bound as a parameter.
+fn filter_expr(k: &str, v: &str, cols: &[(String, String)], binds: &mut Vec<Bind>) -> R<String> {
+    {
         let typ = col_type(cols, k)?;
-        let (mut op, mut val) = v.split_once('.').unwrap_or((v.as_str(), ""));
+        let (mut op, mut val) = v.split_once('.').unwrap_or((v, ""));
         let neg = op == "not";
         if neg {
             (op, val) = val.split_once('.').unwrap_or((val, ""));
@@ -104,9 +153,8 @@ pub fn filters(params: &[(String, String)], cols: &[(String, String)], binds: &m
             }
             _ => return Err(err(StatusCode::BAD_REQUEST, format!("unsupported operator: {op}"))),
         };
-        parts.push(if neg { format!("not ({expr})") } else { expr });
+        Ok(if neg { format!("not ({expr})") } else { expr })
     }
-    Ok(if parts.is_empty() { "true".into() } else { parts.join(" and ") })
 }
 
 fn param<'a>(params: &'a [(String, String)], key: &str) -> Option<&'a str> {
@@ -173,7 +221,7 @@ pub async fn select(State(st): State<AppState>, Path(table): Path<String>, heade
         select_list(&p, &cols)?,
         order_clause(&p, &cols)?
     ));
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let body: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     let want_count = headers.get("prefer").and_then(|v| v.to_str().ok()).is_some_and(|v| v.contains("count=exact"));
     let count: Option<i64> = if want_count {
@@ -246,7 +294,7 @@ pub async fn insert(State(st): State<AppState>, Path(table): Path<String>, heade
             None => groups.push((keys, vec![r])),
         }
     }
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let mut out: Vec<Value> = Vec::new();
     for (keys, group) in groups {
         let conflict = match &target {
@@ -299,7 +347,7 @@ pub async fn update(State(st): State<AppState>, Path(table): Path<String>, heade
         "with r as (update public.\"{table}\" set ({cl}) = (select {cl} from jsonb_populate_record(null::public.\"{table}\", $1::jsonb)) where {w} returning *) {}",
         agg("select * from r")
     );
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(json_response(out))
@@ -314,7 +362,7 @@ pub async fn delete(State(st): State<AppState>, Path(table): Path<String>, heade
     let mut binds = Vec::new();
     let w = filters(&p, &cols, &mut binds)?;
     let sql = format!("with r as (delete from public.\"{table}\" where {w} returning *) {}", agg("select * from r"));
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(json_response(out))
@@ -360,7 +408,7 @@ pub async fn rpc(State(st): State<AppState>, Path(func): Path<String>, headers: 
         format!("select coalesce(to_jsonb(r), 'null')::text from {call} r")
     };
     let binds = [Bind::Text(args.to_string())];
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(json_response(out))
@@ -383,6 +431,25 @@ mod tests {
         let w = filters(&[p("id", "gte.5"), p("name", "not.ilike.*x*"), p("limit", "3")], &cols(), &mut b).unwrap();
         assert_eq!(w, "\"id\" >= $1::text::bigint and not (\"name\"::text ilike $2)");
         assert!(matches!(&b[1], Bind::Text(s) if s == "%x%"));
+    }
+
+    #[test]
+    fn or_filters_match_any_and_stay_parameterised() {
+        let mut b = Vec::new();
+        let w = filters(&[p("id", "gt.1"), p("or", r#"(name.ilike."*a,b*",id.in.(2,3),name.is.null)"#)], &cols(), &mut b).unwrap();
+        assert_eq!(w, "\"id\" > $1::text::bigint and (\"name\"::text ilike $2 or \"id\" = any($3::text[]::bigint[]) or \"name\" is null)");
+        assert!(matches!(&b[1], Bind::Text(s) if s == "%a,b%"), "comma inside quotes stays in the value");
+        assert!(matches!(&b[2], Bind::Arr(v) if v == &["2", "3"]));
+    }
+
+    #[test]
+    fn or_filters_reject_bad_input() {
+        let mut b = Vec::new();
+        assert!(filters(&[p("or", "name.eq.x")], &cols(), &mut b).is_err(), "needs parentheses");
+        assert!(filters(&[p("or", "()")], &cols(), &mut b).is_err(), "needs a filter");
+        assert!(filters(&[p("or", "(nope.eq.1)")], &cols(), &mut b).is_err(), "unknown column");
+        assert!(filters(&[p("or", "(id;drop.eq.1)")], &cols(), &mut b).is_err(), "no injection through names");
+        assert!(filters(&[p("or", "(id)")], &cols(), &mut b).is_err(), "needs an operator");
     }
 
     #[test]

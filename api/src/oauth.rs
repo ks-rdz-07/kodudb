@@ -528,6 +528,11 @@ async fn link_or_create(st: &AppState, provider: &str, p: &Profile, email: &str)
     let user_id = match linked {
         Some(id) => id,
         None => {
+            if !st.settings.read().unwrap().allow_signups
+                && !sqlx::query_scalar::<_, bool>("select exists(select 1 from auth.users where email = $1)").bind(email).fetch_one(&st.pool).await?
+            {
+                return Err(err(StatusCode::FORBIDDEN, "sign-ups are disabled for this project"));
+            }
             // A password set before the address was confirmed is not trusted: whoever set it may not own
             // the mailbox, so linking drops it (the owner can reset it later).
             let id: String = sqlx::query_scalar(

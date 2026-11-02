@@ -94,6 +94,9 @@ pub fn session_with(st: &AppState, user: Value, aal: &str) -> Value {
 
 pub async fn signup(State(st): State<AppState>, headers: HeaderMap, ClientIp(ip): ClientIp, Json(b): Json<Credentials>) -> R<Json<Value>> {
     st.claims(&headers, None)?;
+    if !st.settings.read().unwrap().allow_signups {
+        return Err(err(StatusCode::FORBIDDEN, "sign-ups are disabled for this project"));
+    }
     let (email, password) = (b.email.unwrap_or_default(), b.password.unwrap_or_default());
     validate(&email, &password)?;
     let confirm = crate::mail::settings(&st).await?.require_email_confirmation;

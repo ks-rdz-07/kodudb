@@ -1,7 +1,7 @@
 'use client'
 // Shared console kit on Radix Themes. Every control is a Radix component; Tailwind only lays things out.
 import {
-  AlertDialog, Button, Callout, Dialog, Flex, Heading, IconButton, Select as RSelect, Skeleton as RSkeleton,
+  AlertDialog, Button, Callout, Code, Dialog, Flex, Heading, IconButton, Select as RSelect, Skeleton as RSkeleton,
   Switch as RSwitch, Table, Tabs as RTabs, Text, TextField, Tooltip,
 } from '@radix-ui/themes'
 import * as RToast from '@radix-ui/react-toast'
@@ -137,6 +137,24 @@ export function Modal({ open, onClose, title, description, children, width = '52
   )
 }
 
+/** The name to type back, highlighted, with a copy button. */
+function ConfirmName({ name, danger }: { name: string; danger?: boolean }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    await navigator.clipboard.writeText(name)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <Flex align="center" gap="1">
+      <Code size="2" weight="bold" color={danger ? 'red' : undefined} variant="soft" className="break-all">{name}</Code>
+      <Tooltip content={copied ? 'Copied' : 'Copy name'}>
+        <IconButton type="button" size="1" variant="ghost" color="gray" aria-label="Copy name" onClick={copy}>{copied ? <Check size={13} /> : <Copy size={13} />}</IconButton>
+      </Tooltip>
+    </Flex>
+  )
+}
+
 type ConfirmOpts = { title: string; description: React.ReactNode; action: string; danger?: boolean; typeToConfirm?: string }
 const ConfirmCtx = createContext<(o: ConfirmOpts) => Promise<boolean>>(async () => false)
 export const useConfirm = () => useContext(ConfirmCtx)
@@ -161,7 +179,11 @@ function ConfirmHost({ children }: { children: React.ReactNode }) {
           <AlertDialog.Description size="2" color="gray">{opts?.description}</AlertDialog.Description>
           {opts?.typeToConfirm && (
             <label className="mt-4 flex flex-col gap-1.5">
-              <Text size="2">Type <Text weight="medium" className="font-mono">{opts.typeToConfirm}</Text> to confirm</Text>
+              <Flex align="center" gap="2" wrap="wrap">
+                <Text size="2">Type</Text>
+                <ConfirmName name={opts.typeToConfirm} danger={opts.danger} />
+                <Text size="2">to confirm</Text>
+              </Flex>
               <TextField.Root autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} className="font-mono" />
             </label>
           )}
@@ -190,7 +212,8 @@ export function Tabs({ tabs, value, onChange, children }: { tabs: { value: strin
 }
 
 export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
-  return <RSwitch size="1" color="gray" highContrast checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
+  // On is green, off is amber (see .kd-switch in globals.css), so state reads at a glance.
+  return <RSwitch size="1" color="green" className="kd-switch" checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
 }
 
 export function Select({ value, onChange, options, label, placeholder, size = '2', width }: {
