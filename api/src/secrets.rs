@@ -13,7 +13,6 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sha1::{Digest, Sha1};
 use sqlx::PgPool;
 
 use crate::{
@@ -120,10 +119,15 @@ fn write_env_file(generated: &[(&str, String)]) {
     }
 }
 
-/// Equal-time comparison of two strings (through fixed-length digests).
+/// Constant-time string comparison: the loop always runs over the longer input and never exits early,
+/// so timing reveals neither where the inputs differ nor the stored value's length beyond the caller's own.
 fn same(a: &str, b: &str) -> bool {
-    let (x, y) = (Sha1::digest(a.as_bytes()), Sha1::digest(b.as_bytes()));
-    x.iter().zip(y.iter()).fold(0u8, |acc, (p, q)| acc | (p ^ q)) == 0
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    let mut diff = a.len() ^ b.len();
+    for i in 0..a.len().max(b.len()) {
+        diff |= usize::from(a.get(i).copied().unwrap_or(0) ^ b.get(i).copied().unwrap_or(0));
+    }
+    diff == 0
 }
 
 #[derive(Deserialize)]
@@ -162,5 +166,8 @@ mod tests {
         assert!(same("admin", "admin"));
         assert!(!same("admin", "admin "));
         assert!(!same("", "x"));
+        assert!(!same("correct horse", "correct horsf"));
+        assert!(!same("correct", "correct horse"));
+        assert!(same("", ""));
     }
 }
