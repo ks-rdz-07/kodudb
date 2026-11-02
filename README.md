@@ -22,6 +22,11 @@ Identity, an auto-generated REST API, files, live events, metrics, a change log,
 multiple projects with branching, and migrations synced to GitHub. Four containers: Postgres, a Rust API
 (axum + sqlx), a Next.js console and S3-compatible object storage (RustFS).
 
+> [!TIP]
+> **Built and defended by its contributors.** Every contributor is a guardian of KoduDB. Each fix, review, test
+> and report hardens the platform, protects the people who rely on it, and keeps it open and available to
+> everyone, for good. [Join them](CONTRIBUTING.md).
+
 > [!IMPORTANT]
 > **Preview.** KoduDB is young. Read [Known limits](#known-limits) before you put production data in it, and
 > please [report problems](../../issues/new/choose).
@@ -30,6 +35,36 @@ multiple projects with branching, and migrations synced to GitHub. Four containe
   <img src="docs/media/preview.gif" alt="Product tour" width="720"><br>
   <sub>Full video: <a href="docs/media/kodudb-tour.mp4">1920×1080 MP4</a></sub>
 </p>
+
+## Quick start
+
+```sh
+node scripts/gen-env.mjs                 # creates .env and prints the console sign-in
+docker compose up -d --build             # or: podman compose -f compose.yml up -d --build
+# console: http://localhost:3100    API: http://localhost:8787
+```
+
+More options (Podman, PM2, Windows Server, Railpack, Nixpacks, buildpacks) are in [Deploy anywhere](#deploy-anywhere).
+
+## Why KoduDB
+
+- **Self-hosted and open source.** Apache-2.0, no telemetry, runs on your own servers or any container platform.
+- **PostgreSQL at the core.** Every project is a real Postgres database you can connect to with any tool.
+- **Authentication built in.** Email and password, two-factor (TOTP), and sign-in with Google, GitHub, Microsoft, Apple, Okta, Keycloak or any OpenID Connect provider.
+- **Instant REST API.** Generated from your schema, with filtering, paging, upserts and an OpenAPI 3.1 reference.
+- **Row-level security everywhere.** The same policies protect REST requests, file downloads and realtime events.
+- **Files and realtime.** Buckets with public and private files, and a WebSocket change feed per table.
+- **Branching and migrations.** Branch a project for a Git branch; every schema change becomes a migration you can push to GitHub.
+- **Observability.** Request metrics, latency percentiles, searchable logs and a per-table change log.
+
+<details>
+<summary><b>Contents</b></summary>
+
+- [Quick start](#quick-start) · [Why KoduDB](#why-kodudb) · [Run it](#run-it-docker-or-podman-compose) · [Deploy anywhere](#deploy-anywhere)
+- [Keys](#keys) · [Isolation](#isolation) · [Limits and abuse protection](#limits-and-abuse-protection) · [Features](#features)
+- [Tests](#tests) · [Screenshots](#screenshots) · [Known limits](#known-limits)
+- [Contributing](#contributing) · [Media kit](#media-kit) · [License](#license)
+</details>
 
 <table>
   <tr>
