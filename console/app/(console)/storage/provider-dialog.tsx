@@ -25,7 +25,11 @@ export function ProviderDialog({ open, onClose, slug, current, onSaved }: { open
   const toast = useToast()
   const start = current.provider && current.provider in PRESETS ? current : { provider: 'rustfs' }
   const [provider, setProvider] = useState(start.provider ?? 'rustfs')
-  const [f, setF] = useState({ endpoint: current.endpoint ?? '', region: current.region ?? '', bucket: current.bucket ?? '', access_key: current.access_key ?? '', secret_key: '' })
+  // The saved values belong to the saved provider only; RustFS's own bucket and key are never reused elsewhere.
+  const saved = (id: string) => (id === current.provider && id in PRESETS
+    ? { endpoint: current.endpoint ?? '', region: current.region ?? '', bucket: current.bucket ?? '', access_key: current.access_key ?? '', secret_key: '' }
+    : null)
+  const [f, setF] = useState(saved(start.provider ?? 'rustfs') ?? { endpoint: '', region: '', bucket: '', access_key: '', secret_key: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }))
@@ -33,8 +37,7 @@ export function ProviderDialog({ open, onClose, slug, current, onSaved }: { open
   const pick = (id: string) => {
     setProvider(id)
     const p = PRESETS[id]
-    // Keep what was entered for the same provider; otherwise start from the preset.
-    if (p && id !== current.provider) set({ endpoint: fill(p.endpoint, p.region), region: p.region })
+    if (p) setF(saved(id) ?? { endpoint: fill(p.endpoint, p.region), region: p.region, bucket: '', access_key: '', secret_key: '' })
   }
   const label = (text: string, input: React.ReactNode, hint?: string) => (
     <label className="flex flex-col gap-1.5"><Text size="2" weight="medium">{text}</Text>{input}{hint && <Text size="1" color="gray">{hint}</Text>}</label>
