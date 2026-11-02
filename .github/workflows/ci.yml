@@ -34,6 +34,11 @@ jobs:
           node-version: "26"
           cache: npm
           cache-dependency-path: console/package-lock.json
+      - name: API and console versions match
+        run: |
+          API=$(sed -n 's/^version = "\(.*\)"/\1/p' api/Cargo.toml | head -1)
+          CONSOLE=$(node -p "require('./console/package.json').version")
+          [ "$API" = "$CONSOLE" ] || { echo "::error::api/Cargo.toml is $API but console/package.json is $CONSOLE"; exit 1; }
       - working-directory: console
         run: |
           npm ci --no-audit --no-fund
