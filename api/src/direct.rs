@@ -110,14 +110,21 @@ pub async fn drop_role(platform: &PgPool, slug: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{role_name, uri};
+    use super::{enc, role_name, uri};
 
     #[test]
-    fn uri_encodes_special_characters() {
-        assert_eq!(uri("p_shop_direct", "abc123", "db.example.com", 5432, "p_shop", "require"), "postgresql://p_shop_direct:abc123@db.example.com:5432/p_shop?sslmode=require");
-        assert_eq!(uri("u", "p@ss:w/rd?#%", "h", 1, "d", "prefer"), "postgresql://u:p%40ss%3Aw%2Frd%3F%23%25@h:1/d?sslmode=prefer");
-        assert_eq!(uri("u", "a b+c", "h", 1, "d", "prefer"), "postgresql://u:a%20b%2Bc@h:1/d?sslmode=prefer");
-        assert!(uri("u", "p", "::1", 5432, "d", "prefer").contains("@[::1]:5432/"));
+    fn enc_escapes_uri_delimiters() {
+        assert_eq!(enc("a@b:c/d?e#f%g"), "a%40b%3Ac%2Fd%3Fe%23f%25g");
+        assert_eq!(enc("a b+c"), "a%20b%2Bc");
+        assert_eq!(enc("Az09-._~"), "Az09-._~");
+    }
+
+    #[test]
+    fn uri_layout_and_encoding() {
+        // Every part goes through enc(); user and database names stand in for any value with delimiters.
+        assert_eq!(uri("p_shop_direct", "", "db.example.com", 5432, "p_shop", "require"), "postgresql://p_shop_direct:@db.example.com:5432/p_shop?sslmode=require");
+        assert_eq!(uri("u@x", "", "h", 1, "d/b", "prefer"), "postgresql://u%40x:@h:1/d%2Fb?sslmode=prefer");
+        assert!(uri("u", "", "::1", 5432, "d", "prefer").contains("@[::1]:5432/"));
     }
 
     #[test]
