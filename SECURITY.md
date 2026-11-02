@@ -32,8 +32,10 @@ We aim to acknowledge every report within 7 days.
 - **Project isolation.** Every project database is owned by its own login role (`p_<project>_owner`, not a
   superuser), and only that role may connect to it. `COPY … PROGRAM`, `ALTER SYSTEM` and untrusted
   extensions are refused for project keys.
-- **Secrets at rest.** Project keys, SMTP passwords, provider client secrets, GitHub tokens and data-source
-  connection strings are encrypted with `ENCRYPTION_KEY`. Email links are single-use, expire after one hour
+- **Secrets at rest.** Project keys, SMTP passwords, provider client secrets, two-factor secrets, storage keys,
+  GitHub tokens and data-source connection strings are encrypted with **AES-256** (OpenPGP symmetric encryption,
+  key derived from `ENCRYPTION_KEY` with salted, iterated SHA-256). Values written by older versions with AES-128
+  are re-encrypted with AES-256 automatically at start-up. Email links are single-use, expire after one hour
   and are stored hashed.
 - **Console.** The console holds no secrets. It signs in through the API and uses a 12-hour token.
 - **Sign-in.** Passwords are hashed. Failed sign-ins are rate-limited per email and per client address;

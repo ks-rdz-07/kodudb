@@ -115,7 +115,7 @@ pub async fn ensure_owner(platform: &PgPool, opts: &PgConnectOptions, enc_key: &
         sqlx::query(sqlx::AssertSqlSafe(format!("{verb} role \"{role}\" login password '{password}' nosuperuser nocreatedb nocreaterole noinherit")))
             .execute(platform)
             .await?;
-        sqlx::query("update platform.projects set owner_role = $2, owner_password_enc = pgp_sym_encrypt($3, $4) where slug = $1")
+        sqlx::query("update platform.projects set owner_role = $2, owner_password_enc = pgp_sym_encrypt($3, $4, 'cipher-algo=aes256, s2k-digest-algo=sha256') where slug = $1")
             .bind(slug)
             .bind(&role)
             .bind(&password)

@@ -222,7 +222,7 @@ pub async fn issue_key(platform: &PgPool, enc_key: &str, s3: &S3, slug: &str) ->
     .await?;
     s3.create_key(slug, &access_key, &secret_key).await?;
     let old: Option<Option<String>> = sqlx::query_scalar(
-        "update platform.projects p set storage_access_key = $2, storage_secret_enc = pgp_sym_encrypt($3, $4)
+        "update platform.projects p set storage_access_key = $2, storage_secret_enc = pgp_sym_encrypt($3, $4, 'cipher-algo=aes256, s2k-digest-algo=sha256')
          from (select slug, storage_access_key from platform.projects where slug = $1 for update) o
          where p.slug = o.slug returning o.storage_access_key",
     )

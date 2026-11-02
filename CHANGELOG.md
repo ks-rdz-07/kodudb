@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [0.3.2]
+
+### Security
+- Stored secrets (project keys, SMTP passwords, sign-in provider secrets, two-factor secrets, storage keys,
+  GitHub tokens, data-source URLs) are encrypted with AES-256 and SHA-256 key derivation instead of pgcrypto's
+  default AES-128. Existing values are re-encrypted automatically at start-up; no action needed.
+
 ## [0.3.1]
 
 ### Fixed

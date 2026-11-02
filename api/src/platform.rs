@@ -171,7 +171,7 @@ impl Registry {
         let db = db_name(slug);
         sqlx::query(
             "insert into platform.projects (slug, name, db_name, jwt_secret_enc, parent, git_branch, github_repo, github_token_enc, github_api_url)
-             select $1, $2, $3, pgp_sym_encrypt(s.secret, $4), $5, $6, p.github_repo, p.github_token_enc, p.github_api_url
+             select $1, $2, $3, pgp_sym_encrypt(s.secret, $4, 'cipher-algo=aes256, s2k-digest-algo=sha256'), $5, $6, p.github_repo, p.github_token_enc, p.github_api_url
              from (select encode(gen_random_bytes(48), 'base64') secret) s
              left join platform.projects p on p.slug = $5",
         )
@@ -258,6 +258,12 @@ impl Registry {
         let default_upgrade = async {
             let pool = PgPoolOptions::new().max_connections(1).connect_with(self.opts.clone()).await?;
             let r = sqlx::raw_sql(sqlx::AssertSqlSafe(upgrade.as_str())).execute(&pool).await;
+            // Same connection, triggers still off: bring stored secrets up to AES-256.
+            let columns: Vec<_> = crate::crypto::PLATFORM_COLUMNS.iter().chain(crate::crypto::PROJECT_COLUMNS).copied().collect();
+            let n = crate::crypto::upgrade_columns(&pool, &self.root_secret, &columns).await;
+            if n > 0 {
+                eprintln!("re-encrypted {n} stored secrets of the platform and default project with AES-256");
+            }
             pool.close().await;
             r.map(|_| ())
         }
@@ -276,6 +282,10 @@ impl Registry {
             let upgraded = async {
                 let pool = PgPoolOptions::new().max_connections(1).connect_with(self.opts.clone().database(&db)).await?;
                 let r = sqlx::raw_sql(sqlx::AssertSqlSafe(upgrade.as_str())).execute(&pool).await;
+                let n = crate::crypto::upgrade_columns(&pool, &self.root_secret, crate::crypto::PROJECT_COLUMNS).await;
+                if n > 0 {
+                    eprintln!("re-encrypted {n} stored secrets of {slug} with AES-256");
+                }
                 pool.close().await;
                 r.map(|_| ())
             }
@@ -504,7 +514,7 @@ async fn github_config(State(reg): State<Arc<Registry>>, headers: HeaderMap, Pat
     }
     let n = sqlx::query(
         "update platform.projects set github_repo = $2,
-           github_token_enc = coalesce(pgp_sym_encrypt(nullif($3, ''), $4), github_token_enc),
+           github_token_enc = coalesce(pgp_sym_encrypt(nullif($3, ''), $4, 'cipher-algo=aes256, s2k-digest-algo=sha256'), github_token_enc),
            github_api_url = $5, git_branch = coalesce(nullif($6, ''), git_branch)
          where slug = $1",
     )
@@ -534,7 +544,7 @@ impl Registry {
             ));
         }
         let n = sqlx::query(
-            "update platform.projects set jwt_secret_enc = pgp_sym_encrypt(encode(gen_random_bytes(48), 'base64'), $2) where slug = $1",
+            "update platform.projects set jwt_secret_enc = pgp_sym_encrypt(encode(gen_random_bytes(48), 'base64'), $2, 'cipher-algo=aes256, s2k-digest-algo=sha256') where slug = $1",
         )
         .bind(slug)
         .bind(&self.root_secret)

@@ -1,5 +1,6 @@
 mod auth;
 mod connect;
+mod crypto;
 mod ctx;
 mod github;
 mod logs;

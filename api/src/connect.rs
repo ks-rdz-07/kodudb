@@ -71,7 +71,7 @@ pub async fn create(State(st): State<AppState>, headers: HeaderMap, Json(b): Jso
     }
     let row: Value = sqlx::query_scalar(
         "insert into kodudb.connections (name, kind, url_encrypted, host_hint)
-         values ($1, $2, pgp_sym_encrypt($3, $4), $5)
+         values ($1, $2, pgp_sym_encrypt($3, $4, 'cipher-algo=aes256, s2k-digest-algo=sha256'), $5)
          returning jsonb_build_object('id', id, 'name', name, 'kind', kind, 'host_hint', host_hint, 'created_at', created_at)",
     )
     .bind(b.name.trim())
