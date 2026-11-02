@@ -24,6 +24,7 @@ const LINK_TTL_MINUTES: i32 = 60;
 /// Recovery and resend requests per email address per 15 minutes.
 static MAIL_REQUESTS: LazyLock<Limiter> = LazyLock::new(|| Limiter::new(3, std::time::Duration::from_secs(15 * 60)));
 
+#[derive(Clone)]
 pub struct Settings {
     pub require_email_confirmation: bool,
     pub site_url: String,
@@ -57,7 +58,7 @@ fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// `{{link}}`, `{{email}}`, `{{project}}`, `{{site_url}}`; values are HTML-escaped.
+/// `{{link}}` (empty in notices), `{{email}}`, `{{project}}`, `{{site_url}}`; values are HTML-escaped.
 pub fn render(template: &str, vars: &[(&str, &str)]) -> String {
     vars.iter().fold(template.to_string(), |acc, (k, v)| acc.replace(&format!("{{{{{k}}}}}"), &html_escape(v)))
 }
@@ -142,16 +143,33 @@ pub async fn send_link(st: &AppState, user_id: &str, email: &str, kind: &str, re
     .fetch_one(&st.pool)
     .await?;
     let link = format!("{}/auth/v1/verify?token={token}&type={kind}", api_base(st));
-    let (subject, body): (String, String) = sqlx::query_as("select subject, body from auth.email_templates where kind = $1").bind(kind).fetch_one(&st.pool).await?;
     let s = settings(st).await?;
-    let vars = [("link", link.as_str()), ("email", email), ("project", st.project.as_str()), ("site_url", s.site_url.as_str())];
+    queue(st, &s, email, kind, &link).await
+}
+
+/// Renders the stored template for `kind` and sends it in the background.
+async fn queue(st: &AppState, s: &Settings, email: &str, kind: &str, link: &str) -> R<()> {
+    let (subject, body): (String, String) = sqlx::query_as("select subject, body from auth.email_templates where kind = $1").bind(kind).fetch_one(&st.pool).await?;
+    let vars = [("link", link), ("email", email), ("project", st.project.as_str()), ("site_url", s.site_url.as_str())];
     let (subject, html) = (render(&subject, &vars), render(&body, &vars));
-    let (st, email, kind) = (st.clone(), email.to_string(), kind.to_string());
+    let (st, s, email, kind, link) = (st.clone(), s.clone(), email.to_string(), kind.to_string(), link.to_string());
     tokio::spawn(async move {
         let result = deliver(&s, &email, &subject, &html, &link).await;
         log(&st, &email, &kind, &subject, &result).await;
     });
     Ok(())
+}
+
+/// Security notice after an account change. Never fails the change itself, and is skipped until SMTP is set up.
+pub async fn notify(st: &AppState, user_id: &str, kind: &str) {
+    let Ok(s) = settings(st).await else { return };
+    if s.host.as_deref().is_none_or(str::is_empty) || s.from.as_deref().is_none_or(str::is_empty) {
+        return;
+    }
+    let email: Option<String> = sqlx::query_scalar("select email from auth.users where id = $1::uuid").bind(user_id).fetch_optional(&st.pool).await.ok().flatten();
+    if let Some(email) = email {
+        let _ = queue(st, &s, &email, kind, "").await;
+    }
 }
 
 // ---------- public endpoints ----------
@@ -403,7 +421,7 @@ pub async fn put_template(State(st): State<AppState>, headers: HeaderMap, Path(k
     if b.subject.trim().is_empty() || b.subject.len() > 200 || b.body.len() > 50_000 {
         return Err(err(StatusCode::BAD_REQUEST, "subject is required (max 200 chars); body max 50 KB"));
     }
-    if !b.body.contains("{{link}}") {
+    if matches!(kind.as_str(), "confirm" | "recovery") && !b.body.contains("{{link}}") {
         return Err(err(StatusCode::BAD_REQUEST, "the body must contain {{link}}"));
     }
     let v: Option<Value> = sqlx::query_scalar(
@@ -414,7 +432,7 @@ pub async fn put_template(State(st): State<AppState>, headers: HeaderMap, Path(k
     .bind(&b.body)
     .fetch_optional(&st.pool)
     .await?;
-    v.map(Json).ok_or_else(|| err(StatusCode::NOT_FOUND, "template kinds are confirm and recovery"))
+    v.map(Json).ok_or_else(|| err(StatusCode::NOT_FOUND, "unknown template kind"))
 }
 
 pub async fn list_emails(State(st): State<AppState>, headers: HeaderMap) -> R<Json<Value>> {
@@ -430,6 +448,13 @@ pub async fn list_emails(State(st): State<AppState>, headers: HeaderMap) -> R<Js
 #[cfg(test)]
 mod tests {
     use super::{plain_text, render, safe_redirect};
+
+    #[test]
+    fn notice_without_a_link_renders_and_has_no_trailing_link() {
+        let html = render("<p>{{email}} on {{project}}</p>", &[("link", ""), ("email", "user@example.com"), ("project", "demo")]);
+        assert_eq!(html, "<p>user@example.com on demo</p>");
+        assert_eq!(plain_text(&html, ""), "user@example.com on demo");
+    }
 
     #[test]
     fn renders_and_escapes_placeholders() {

@@ -7,6 +7,10 @@ The format is based on Keep a Changelog, and this project uses semantic versioni
 ## [Unreleased]
 
 ### Added
+- Three account notice emails, editable under Identity, Email templates: password changed, two-factor sign-in
+  turned on, and two-factor sign-in removed (also when an admin resets a user's authenticators). They are sent
+  when the change happens, only once SMTP is set up, and appear in the sent emails list. Their bodies need no
+  `{{link}}`.
 - Project settings: a Settings page in the console and `GET`/`PUT /platform/v1/projects/{slug}/settings`
   (secret key). Per project: close idle database connections after N minutes, statement timeout, allow new
   sign-ups (403 when off), request logging with retention in days, require email confirmation (the same

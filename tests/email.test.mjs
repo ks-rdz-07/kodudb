@@ -203,9 +203,9 @@ describe('password recovery', () => {
 })
 
 describe('templates and the email log', () => {
-  test('templates list both kinds and reject a body without {{link}}', async () => {
+  test('templates list every kind and reject a body without {{link}}', async () => {
     const t = await admin('/auth/v1/admin/templates')
-    assert.deepEqual(t.data.map((x) => x.kind), ['confirm', 'recovery'])
+    assert.deepEqual(t.data.map((x) => x.kind), ['confirm', 'mfa_disabled', 'mfa_enabled', 'password_changed', 'recovery'])
     assert.equal((await admin('/auth/v1/admin/templates/confirm', { method: 'PUT', body: { subject: 'Hi', body: '<p>no link</p>' } })).status, 400)
   })
   test('an edited template is used by the next email, with values escaped', async () => {
@@ -217,9 +217,43 @@ describe('templates and the email log', () => {
     assert.match(m.html, new RegExp(`Hello ${email.replace('.', '\\.')}`))
     assert.ok(linkIn(m))
   })
+  test('notice templates need no link and cannot be invented', async () => {
+    const r = await admin('/auth/v1/admin/templates/password_changed', { method: 'PUT', body: { subject: 'Changed for {{project}}', body: '<p>Password changed for {{email}}.</p>' } })
+    assert.equal(r.status, 200, JSON.stringify(r.data))
+    assert.equal((await admin('/auth/v1/admin/templates/nope', { method: 'PUT', body: { subject: 'x', body: '{{link}}' } })).status, 404)
+  })
   test('the email log records sent and failed messages', async () => {
     const log = await admin('/auth/v1/admin/emails')
     assert.ok(log.data.some((e) => e.kind === 'confirm' && e.status === 'sent'))
     assert.ok(log.data.some((e) => e.kind === 'test' && e.status === 'failed'))
+  })
+})
+
+describe('account notices', () => {
+  const email = `notice-${RUN}@example.test`
+  let session, factor
+  before(async () => {
+    await admin('/auth/v1/admin/settings', { method: 'PUT', body: { require_email_confirmation: false } })
+    session = (await anon('/auth/v1/signup', { method: 'POST', body: { email, password: PASSWORD } })).data
+  })
+  test('changing the password sends a notice', async () => {
+    const r = await anon('/auth/v1/user', { method: 'PUT', token: session.access_token, body: { password: 'another-long-passphrase' } })
+    assert.equal(r.status, 200, JSON.stringify(r.data))
+    const m = await waitForMail(email, `Changed for ${p.slug}`)
+    assert.ok(m.html.includes(`Password changed for ${email}`), m.html)
+  })
+  test('adding an authenticator sends a notice', async () => {
+    factor = (await anon('/auth/v1/factors', { method: 'POST', token: session.access_token, body: {} })).data
+    const r = await anon(`/auth/v1/factors/${factor.id}/verify`, { method: 'POST', token: session.access_token, body: { code: totp(factor.totp.secret) } })
+    assert.equal(r.status, 200, JSON.stringify(r.data))
+    session = r.data
+    await waitForMail(email, 'Two-factor sign-in is on')
+  })
+  test('removing it sends a notice', async () => {
+    const r = await anon(`/auth/v1/factors/${factor.id}`, { method: 'DELETE', token: session.access_token })
+    assert.equal(r.status, 204)
+    await waitForMail(email, 'Two-factor sign-in was removed')
+    const log = await admin('/auth/v1/admin/emails')
+    for (const kind of ['password_changed', 'mfa_enabled', 'mfa_disabled']) assert.ok(log.data.some((e) => e.kind === kind && e.to_email === email && e.status === 'sent'), kind)
   })
 })

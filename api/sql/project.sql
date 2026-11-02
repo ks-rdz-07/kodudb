@@ -66,7 +66,7 @@ create table if not exists auth.settings (
 insert into auth.settings (id) values (1) on conflict do nothing;
 
 create table if not exists auth.email_templates (
-  kind text primary key check (kind in ('confirm', 'recovery')),
+  kind text primary key,
   subject text not null,
   body text not null,
   updated_at timestamptz not null default now()
@@ -76,6 +76,17 @@ insert into auth.email_templates (kind, subject, body) values
    '<p>Hi,</p><p>Confirm your email address to finish signing up for {{project}}.</p><p><a href="{{link}}">Confirm email</a></p><p>The link works once and expires in one hour. If you did not sign up, ignore this email.</p>'),
   ('recovery', 'Reset your {{project}} password',
    '<p>Hi,</p><p>Someone asked to reset the password for {{email}}.</p><p><a href="{{link}}">Choose a new password</a></p><p>The link works once and expires in one hour. If it was not you, ignore this email.</p>')
+on conflict (kind) do nothing;
+-- Older databases limited kinds to confirm and recovery.
+alter table auth.email_templates drop constraint if exists email_templates_kind_check;
+-- Notices: sent after the event, no link.
+insert into auth.email_templates (kind, subject, body) values
+  ('password_changed', 'Your {{project}} password was changed',
+   '<p>Hello,</p><p>The password for {{email}} on {{project}} was just changed.</p><p>If it was you, no action is needed. If it was not, reset your password right away and contact the site owner.</p>'),
+  ('mfa_enabled', 'Two-factor sign-in is on for your {{project}} account',
+   '<p>Hello,</p><p>An authenticator was added to {{email}} on {{project}}. From now on, signing in also asks for a code from it.</p><p>If it was not you, contact the site owner.</p>'),
+  ('mfa_disabled', 'Two-factor sign-in was removed from your {{project}} account',
+   '<p>Hello,</p><p>An authenticator was removed from {{email}} on {{project}}. Signing in no longer asks for a code from it.</p><p>If it was not you, change your password and contact the site owner.</p>')
 on conflict (kind) do nothing;
 
 -- Single-use links: only a hash of the token is stored.
