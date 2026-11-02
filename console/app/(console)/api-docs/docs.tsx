@@ -1,10 +1,10 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { useEffect, useState } from 'react'
 import { Button, Flex } from '@radix-ui/themes'
 import { Download } from 'lucide-react'
 import '@scalar/api-reference-react/style.css'
 import { PageHeader, Skeleton } from '@/components/ui'
+import { useDark } from '@/lib/theme'
 
 const ApiReferenceReact = dynamic(() => import('@scalar/api-reference-react').then((m) => m.ApiReferenceReact), {
   ssr: false,
@@ -25,14 +25,8 @@ const CUSTOM_CSS = `
 `
 
 export default function Docs({ project, endpoint, publicKey }: { project: string; endpoint: string; publicKey: string }) {
-  const [dark, setDark] = useState(false)
-  useEffect(() => {
-    const m = matchMedia('(prefers-color-scheme: dark)')
-    const set = () => setDark(m.matches)
-    set()
-    m.addEventListener('change', set)
-    return () => m.removeEventListener('change', set)
-  }, [])
+  // Scalar reads forceDarkModeState only when it mounts: wait for the theme, and remount when it changes.
+  const dark = useDark()
 
   return (
     <>
@@ -42,7 +36,8 @@ export default function Docs({ project, endpoint, publicKey }: { project: string
         actions={<Button variant="soft" color="gray" asChild><a href="/api/openapi" download="openapi.json"><Download size={15} />OpenAPI JSON</a></Button>}
       />
       <Flex direction="column" className="-mx-4 -mb-4 sm:-mx-6 sm:-mb-6 overflow-hidden lg:rounded-b-2xl" style={{ borderTop: '1px solid var(--sheet-edge)' }}>
-        <ApiReferenceReact
+        {dark === null ? <Skeleton rows={8} /> : <ApiReferenceReact
+          key={dark ? 'dark' : 'light'}
           configuration={{
             url: '/api/openapi',
             layout: 'modern',
@@ -56,7 +51,7 @@ export default function Docs({ project, endpoint, publicKey }: { project: string
             customCss: CUSTOM_CSS,
             authentication: { preferredSecurityScheme: 'publicKey', securitySchemes: { publicKey: { value: publicKey } } },
           }}
-        />
+        />}
       </Flex>
     </>
   )
