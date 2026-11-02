@@ -223,7 +223,14 @@ pub async fn verify(State(st): State<AppState>, headers: HeaderMap, Path(id): Pa
     if let Err(r) = check_code(&st, &user_id, &id, &b.code).await? {
         return Ok(r);
     }
-    sqlx::query("update auth.mfa_factors set status = 'verified', verified_at = coalesce(verified_at, now()) where id = $1::uuid").bind(&id).execute(&st.pool).await?;
+    let first = sqlx::query("update auth.mfa_factors set status = 'verified', verified_at = coalesce(verified_at, now()) where id = $1::uuid and status <> 'verified'")
+        .bind(&id)
+        .execute(&st.pool)
+        .await?
+        .rows_affected();
+    if first > 0 {
+        crate::mail::notify(&st, &user_id, "mfa_enabled").await;
+    }
     let user = crate::auth::active_user(&st, Some(&user_id)).await?;
     Ok(Json(crate::auth::session_with(&st, user, "aal2")).into_response())
 }
@@ -237,6 +244,9 @@ pub async fn unenroll(State(st): State<AppState>, headers: HeaderMap, Path(id): 
         return Err(err(StatusCode::FORBIDDEN, "sign in with your authenticator code first"));
     }
     sqlx::query("delete from auth.mfa_factors where id = $1::uuid and user_id = $2::uuid").bind(&id).bind(user_id).execute(&st.pool).await?;
+    if status == "verified" {
+        crate::mail::notify(&st, user_id, "mfa_disabled").await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -269,6 +279,9 @@ pub async fn sign_in(st: &AppState, mfa_token: &str, code: &str, factor_id: Opti
 pub async fn admin_reset(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> R<Json<Value>> {
     require_service(&st.claims(&headers, None)?)?;
     let n = sqlx::query("delete from auth.mfa_factors where user_id = $1::uuid").bind(&id).execute(&st.pool).await?.rows_affected();
+    if n > 0 {
+        crate::mail::notify(&st, &id, "mfa_disabled").await;
+    }
     Ok(Json(json!({ "removed": n })))
 }
 

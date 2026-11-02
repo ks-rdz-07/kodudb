@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+- Three account notice emails, editable under Identity, Email templates: password changed, two-factor sign-in
+  turned on, and two-factor sign-in removed (also when an admin resets a user's authenticators). They are sent
+  when the change happens, only once SMTP is set up, and appear in the sent emails list. Their bodies need no
+  `{{link}}`.
+
 ## [0.3.2]
 
 ### Security
