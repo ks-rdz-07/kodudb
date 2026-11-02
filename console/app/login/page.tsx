@@ -1,12 +1,14 @@
 'use client'
 import { useState } from 'react'
-import { Button, Callout, Card, Flex, Heading, Text, TextField } from '@radix-ui/themes'
+import { Button, Callout, Card, Flex, Heading, IconButton, Text, TextField, Tooltip } from '@radix-ui/themes'
+import { Eye, EyeOff } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { SignInBackground } from '@/components/backgrounds'
 
 export default function Login() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [shown, setShown] = useState(false)
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -17,9 +19,10 @@ export default function Login() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: form.get('username'), password: form.get('password') }),
-    })
+    }).catch(() => null)
     setBusy(false)
-    if (res.ok) window.location.href = '/'
+    if (!res) setError('The console is not reachable. Check that it is running and try again.')
+    else if (res.ok) window.location.href = '/'
     else if (res.status === 429) setError('Too many attempts. Wait a minute and try again.')
     else if (res.status === 502) setError('The KoduDB API is not reachable. Check that it is running.')
     else setError('That username or password is not right.')
@@ -42,7 +45,15 @@ export default function Login() {
             </label>
             <label className="flex flex-col gap-1.5">
               <Text size="2" weight="medium">Password</Text>
-              <TextField.Root name="password" type="password" size="3" required autoComplete="current-password" />
+              <TextField.Root name="password" type={shown ? 'text' : 'password'} size="3" required autoComplete="current-password">
+                <TextField.Slot side="right">
+                  <Tooltip content={shown ? 'Hide password' : 'Show password'}>
+                    <IconButton type="button" size="1" variant="ghost" color="gray" aria-label={shown ? 'Hide password' : 'Show password'} aria-pressed={shown} onClick={() => setShown(!shown)}>
+                      {shown ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </IconButton>
+                  </Tooltip>
+                </TextField.Slot>
+              </TextField.Root>
             </label>
             {error && <Callout.Root color="red" size="1" role="alert"><Callout.Text>{error}</Callout.Text></Callout.Root>}
             <Button size="3" loading={busy}>Sign in</Button>
