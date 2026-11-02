@@ -129,8 +129,12 @@ impl Registry {
             .map_err(|e| err(StatusCode::SERVICE_UNAVAILABLE, format!("project database unavailable: {e}")))?;
         let (realtime, listener) = crate::realtime::spawn_listener(&pool).await?;
         let objects = self.root.objects.clone();
-        let store = objects.project_store(slug).await?;
-        if let crate::objects::Backend::S3(_) = objects.as_ref() {
+        let custom = crate::providers::load(&self.root.platform, &self.root_secret, slug).await?;
+        let store = match &custom {
+            Some(c) => crate::providers::build_store(c)?,
+            None => objects.project_store(slug).await?,
+        };
+        if custom.is_none() && matches!(objects.as_ref(), crate::objects::Backend::S3(_)) {
             let local_root = std::path::PathBuf::from(std::env::var("STORAGE_ROOT").unwrap_or_else(|_| "storage".into()));
             match crate::objects::migrate_local(&objects, &local_root, slug).await {
                 Ok(0) => {}
@@ -355,6 +359,7 @@ pub fn routes(reg: Arc<Registry>) -> Router {
         .route("/platform/v1/projects/{slug}/extensions", post(extension))
         .route("/platform/v1/projects/{slug}/storage", get(storage_credentials))
         .route("/platform/v1/projects/{slug}/storage/rotate", post(rotate_storage_key))
+        .route("/platform/v1/projects/{slug}/storage/provider", put(set_storage_provider))
         .route("/platform/v1/rotate-keys", post(rotate_all))
         .route("/platform/v1/projects/{slug}/settings", get(settings_get).put(settings_put))
         .route("/platform/v1/projects/{slug}/github", put(github_config))
@@ -387,11 +392,39 @@ async fn storage_credentials(State(reg): State<Arc<Registry>>, headers: HeaderMa
 async fn rotate_storage_key(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {
     reg.require_root(&headers)?;
     reg.project(&slug).await?;
+    if crate::providers::load(&reg.root.platform, &reg.root_secret, &slug).await?.is_some() {
+        return Err(err(StatusCode::BAD_REQUEST, "this project uses its own storage provider; rotate the key there"));
+    }
     let Some(s3) = reg.root.objects.s3() else {
         return Err(err(StatusCode::BAD_REQUEST, "files are stored locally; there is no storage key to rotate"));
     };
     crate::objects::issue_key(&reg.root.platform, &reg.root_secret, s3, &slug).await?;
     Ok(Json(crate::objects::credentials(&reg.root.platform, &reg.root_secret, &reg.root.objects, &slug).await?))
+}
+
+/// Choose where a project's files live: `rustfs` (the bundled server) or an S3-compatible service of the
+/// user's own. The connection is tested before anything is saved. Existing files are not moved.
+async fn set_storage_provider(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>, Json(mut b): Json<crate::providers::Input>) -> R<Json<Value>> {
+    reg.require_root(&headers)?;
+    reg.project(&slug).await?;
+    if slug == "default" {
+        return Err(err(StatusCode::BAD_REQUEST, "the default project always uses the bundled storage; create a project to use another provider"));
+    }
+    let db = &reg.root.platform;
+    if b.provider == "rustfs" {
+        crate::providers::clear(db, &slug).await?;
+    } else {
+        crate::providers::validate(&mut b)?;
+        if b.secret_key.is_empty() {
+            b.secret_key = crate::providers::load(db, &reg.root_secret, &slug).await?.map(|c| c.secret_key).ok_or_else(|| err(StatusCode::BAD_REQUEST, "secret key is required"))?;
+        }
+        let path_style = b.path_style.unwrap_or_else(|| crate::providers::default_path_style(&b.provider));
+        let c = crate::providers::Custom { provider: b.provider, endpoint: b.endpoint, region: b.region, bucket: b.bucket, access_key: b.access_key, secret_key: b.secret_key, path_style };
+        crate::providers::test_connection(&crate::providers::build_store(&c)?).await?;
+        crate::providers::save(db, &reg.root_secret, &slug, &c).await?;
+    }
+    reg.unload(&slug).await; // the next request opens the new store
+    Ok(Json(crate::objects::credentials(db, &reg.root_secret, &reg.root.objects, &slug).await?))
 }
 
 async fn get_one(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {

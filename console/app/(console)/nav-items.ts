@@ -1,6 +1,6 @@
 import {
   Activity, BookOpen, Braces, Database, FileClock, FolderKanban, GitBranch, HardDrive, LayoutDashboard,
-  Plug, Radio, ScrollText, Settings, Table2, Users,
+  Code2, Plug, Radio, ScrollText, Settings, Table2, Users,
 } from 'lucide-react'
 
 // KoduDB's own vocabulary for every destination.
@@ -38,6 +38,7 @@ export const NAV = [
     items: [
       { href: '/connectors', label: 'Data sources', icon: Plug },
       { href: '/api-docs', label: 'API reference', icon: BookOpen },
+      { href: '/sdk', label: 'SDKs', icon: Code2 },
     ],
   },
 ] as const

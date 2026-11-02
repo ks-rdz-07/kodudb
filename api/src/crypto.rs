@@ -12,6 +12,7 @@ pub const PLATFORM_COLUMNS: &[(&str, &str)] = &[
     ("platform.projects", "github_token_enc"),
     ("platform.projects", "owner_password_enc"),
     ("platform.projects", "storage_secret_enc"),
+    ("platform.projects", "storage_custom_secret_enc"),
 ];
 
 /// Encrypted columns in every project database (the default project lives in the platform database).
@@ -54,6 +55,7 @@ mod tests {
             include_str!("mfa.rs"),
             include_str!("oauth.rs"),
             include_str!("objects.rs"),
+            include_str!("providers.rs"),
             include_str!("owner.rs"),
             include_str!("platform.rs"),
             include_str!("secrets.rs"),
