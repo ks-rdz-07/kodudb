@@ -240,7 +240,7 @@ describe('account notices', () => {
     const r = await anon('/auth/v1/user', { method: 'PUT', token: session.access_token, body: { password: 'another-long-passphrase' } })
     assert.equal(r.status, 200, JSON.stringify(r.data))
     const m = await waitForMail(email, `Changed for ${p.slug}`)
-    assert.match(m.html, new RegExp(`Password changed for ${email.replace('.', '\.')}`))
+    assert.ok(m.html.includes(`Password changed for ${email}`), m.html)
   })
   test('adding an authenticator sends a notice', async () => {
     factor = (await anon('/auth/v1/factors', { method: 'POST', token: session.access_token, body: {} })).data
