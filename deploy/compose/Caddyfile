@@ -1,0 +1,16 @@
+# HTTPS for KoduDB (used with `docker compose --profile tls up -d`). Certificates are issued automatically.
+app.{$DOMAIN} {
+	reverse_proxy console:3000
+}
+
+api.{$DOMAIN} {
+	reverse_proxy api:8787
+}
+
+s3.{$DOMAIN} {
+	reverse_proxy storage:9000
+}
+
+storage.{$DOMAIN} {
+	reverse_proxy storage:9001
+}

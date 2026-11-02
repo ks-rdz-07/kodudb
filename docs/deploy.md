@@ -36,6 +36,22 @@ variables are listed in [`.env.example`](../.env.example).
 | **PM2** (Linux, macOS, Windows) | `ecosystem.config.cjs` runs both | |
 | **Windows Server** | `scripts\windows\install.ps1` (PM2 + start-up task) | |
 
+### From published images
+
+| Target | Where | What it runs |
+|--------|-------|--------------|
+| **Any Docker host** | `deploy/compose/` | Postgres, API, console, RustFS; optional HTTPS through Caddy |
+| **Kubernetes** (EKS, GKE, AKS, DigitalOcean, k3s…) | `deploy/helm/kodudb/` | Helm chart with optional bundled Postgres and RustFS, ingress and TLS |
+| **Terraform: cloud VMs** | `deploy/terraform/{aws,gcp,azure,digitalocean,hetzner}` | One VM running `deploy/compose`, firewall, static IP |
+| **Terraform: Kubernetes** | `deploy/terraform/kubernetes` | The Helm chart in an existing cluster |
+| **Render** | `render.yaml` | API and console, Render Postgres, a disk for files |
+| **Fly.io** | `deploy/fly/` | API and console apps, a volume for files, Fly Postgres |
+| **DigitalOcean App Platform** | `.do/app.yaml` | API and console, managed Postgres, files in S3 (Spaces) |
+
+Images: `docker.io/kns777/kodudb-api` and `docker.io/kns777/kodudb-console` (also on GitHub Packages), tagged
+with the release version and `latest`. Every target has **dev**, **staging** and **prod** profiles; see
+[Environments](#environments).
+
 On platforms that build from a repository (Dokploy, Coolify, Railway and similar), create two apps from
 this repository and set the build path to `api` and to `console`.
 
@@ -109,6 +125,94 @@ powershell -ExecutionPolicy Bypass -File scripts\windows\install.ps1 -DatabaseUr
 
 It needs Node.js 22+, Rust (rustup) and PostgreSQL. It completes `.env`, builds both apps, runs them with
 PM2 and registers a `KoduDB` start-up task. `-Uninstall` stops them and removes the task (data stays).
+
+### Any Docker host (published images)
+
+```sh
+cd deploy/compose
+./init-env.sh                  # or: ./init-env.sh example.com   (HTTPS on app./api./s3./storage.example.com)
+docker compose up -d           # with a domain: docker compose --profile tls up -d
+docker compose logs api | grep -A3 sign-in
+```
+
+### Kubernetes (Helm)
+
+```sh
+helm install kodudb ./deploy/helm/kodudb -n kodudb --create-namespace -f deploy/helm/kodudb/values-prod.yaml
+kubectl -n kodudb logs deploy/kodudb-api | grep -A3 sign-in
+```
+
+- Bundled Postgres and RustFS run as StatefulSets. For a managed database set `postgres.enabled=false` and
+  `externalDatabase.url`; for external S3 set `storage.enabled=false` and `externalS3.endpoint`.
+- Secrets are generated on first install, kept on upgrade, and kept when the release is uninstalled (they decrypt
+  stored credentials). To manage them yourself, set `existingSecret` to a Secret with the keys `POSTGRES_PASSWORD`,
+  `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_SECRET`, `ENCRYPTION_KEY`, `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`
+  (and `DATABASE_URL` for an external database).
+- Several API replicas need S3 storage (the chart refuses `api.replicas > 1` with local files).
+- Ingress hosts and TLS go in `ingress.*`; the prod and staging profiles expect an NGINX ingress controller and a
+  cert-manager `ClusterIssuer` named `letsencrypt`.
+
+### Terraform
+
+```sh
+cd deploy/terraform/aws              # or gcp, azure, digitalocean, hetzner, kubernetes
+cp envs/prod.tfvars my.tfvars        # replace the placeholders (SSH key, your address, domain, project id)
+terraform init
+terraform apply -var-file=my.tfvars
+terraform output urls                # console, API and storage addresses
+terraform output sign_in             # command that prints the console sign-in
+```
+
+- The VM roots create one Ubuntu 24.04 server with a static IP and a firewall (SSH from `admin_cidr` only;
+  ports 3100/8787/9000/9001 without a domain, or 80/443 with one). Cloud-init installs Docker and starts
+  `deploy/compose`. Secrets are generated **on the server**, so they never enter Terraform state.
+- With `domain` set, point `app.`, `api.`, `s3.` and `storage.<domain>` at the server's IP before applying; Caddy
+  obtains certificates on first request.
+- The `kubernetes` root installs the Helm chart with `values-<environment>.yaml`, the domain's ingress hosts and an
+  optional managed database URL (`TF_VAR_external_database_url`).
+- Credentials come from each provider's usual sources (AWS profile, `gcloud auth application-default login`,
+  `az login`, `DIGITALOCEAN_TOKEN`, `HCLOUD_TOKEN`, kubeconfig). Store state remotely for teams (S3, GCS, Azure
+  Blob or Terraform Cloud backend).
+
+### Render, Fly.io and DigitalOcean App Platform
+
+- **Render:** New → Blueprint → this repository (`render.yaml`). After the first deploy, set `KODUDB_PUBLIC_URL`
+  on `kodudb-api` to its public URL. Files are kept on the API's disk.
+- **Fly.io:** follow `deploy/fly/README.md` (two apps, a volume, Fly Postgres).
+- **DigitalOcean App Platform:** `doctl apps create --spec .do/app.yaml`, after filling in the S3 values (App
+  Platform has no persistent disks, so files go to a Spaces bucket or another S3 server).
+- Managed Postgres plans that forbid `CREATE DATABASE` / `CREATE ROLE` run the default project only.
+
+## Environments
+
+| | dev | staging | prod |
+|---|---|---|---|
+| Helm (`values-*.yaml`) | no ingress, small volumes | ingress + TLS, 10/20 GB | 2 API and 2 console replicas, ingress + TLS, 50/200 GB, more memory |
+| Terraform VMs (`envs/*.tfvars`) | smallest size, plain HTTP | medium size, HTTPS on `staging.example.com` | larger size and disk, HTTPS on `example.com` |
+| Terraform Kubernetes | dev values | staging values + domain | prod values + domain, optional managed database |
+| Render / Fly.io / App Platform | one service set per environment (separate apps, databases and secrets) | | |
+
+Keep each environment's secrets separate: never copy `ENCRYPTION_KEY` or the database from prod to dev.
+
+## Environment variables
+
+| Variable | Used by | Default | Purpose |
+|----------|---------|---------|---------|
+| `DATABASE_URL` | API | — (required) | Postgres URL; the user must be able to create databases and roles for extra projects |
+| `KODUDB_PUBLIC_URL` | API, console | `http://localhost:8787` | Public API address, used in email and sign-in links |
+| `PORT` | API, console | `8787` / `3000` | Listen port |
+| `JWT_SECRET` | API | generated and stored | Signs keys and tokens |
+| `ENCRYPTION_KEY` | API | generated and stored | Encrypts stored credentials; never change it once set |
+| `DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD` | API | `admin`, generated | Console sign-in |
+| `TRUST_PROXY` | API | off | Set to `1` behind your own reverse proxy or ingress |
+| `STORAGE_ROOT` | API | `./storage` (`/data/storage` in the image) | Local file storage when S3 is not configured |
+| `S3_ENDPOINT` | API | — | S3-compatible storage the API uses; enables S3 storage |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY` | API, RustFS | — | Storage root credentials; per-project keys are created from them |
+| `S3_PUBLIC_URL` | API | `S3_ENDPOINT` | S3 address shown to people and apps |
+| `S3_CONSOLE_URL` | API | — | Storage console link in Files → S3 access |
+| `S3_REGION` | API | `us-east-1` | Region for request signing |
+| `KODUDB_API_URL` | console | `http://localhost:8787` | Where the console reaches the API (`host:port` is accepted) |
+| `POSTGRES_PASSWORD` | Compose, Helm | generated | Password of the bundled Postgres |
 
 ## Lost the console password?
 

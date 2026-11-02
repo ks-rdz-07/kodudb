@@ -3,7 +3,9 @@ import { cookies } from 'next/headers'
 import { sessionToken } from './session'
 
 export const PROJECT_COOKIE = 'kodu_project'
-export const API = process.env.KODUDB_API_URL ?? 'http://localhost:8787'
+// Some platforms (Render's fromService hostport) pass the API as host:port; assume http for internal addresses.
+const rawApi = process.env.KODUDB_API_URL ?? 'http://localhost:8787'
+export const API = /^https?:\/\//.test(rawApi) ? rawApi : `http://${rawApi}`
 export const PUBLIC_URL = process.env.KODUDB_PUBLIC_URL ?? 'http://localhost:8787'
 
 export type ProjectInfo = { slug: string; name: string; path: string; public_key: string; secret_key: string }

@@ -1,0 +1,27 @@
+#cloud-config
+# KoduDB on a single VM: Docker, the deploy/compose stack, secrets generated on first boot.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+write_files:
+  - path: ${install_dir}/compose.yml
+    encoding: b64
+    content: ${compose_b64}
+  - path: ${install_dir}/Caddyfile
+    encoding: b64
+    content: ${caddy_b64}
+  - path: ${install_dir}/init-env.sh
+    encoding: b64
+    permissions: "0755"
+    content: ${init_env_b64}
+  - path: ${install_dir}/settings.env
+    encoding: b64
+    permissions: "0600"
+    content: ${settings_b64}
+runcmd:
+  - [sh, -c, "command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh"]
+  - [systemctl, enable, --now, docker]
+  - [sh, -c, "cd ${install_dir} && ./init-env.sh ${domain} && while IFS= read -r l; do k=$${l%%=*}; grep -q \"^$k=\" .env || echo \"$l\" >> .env; done < settings.env"]
+  - [sh, -c, "cd ${install_dir} && docker compose ${profile} up -d"]
+  - [sh, -c, "echo 'KoduDB is starting. Console sign-in: cd ${install_dir} && docker compose logs api | grep -A3 sign-in' > /etc/motd.d/kodudb 2>/dev/null || true"]

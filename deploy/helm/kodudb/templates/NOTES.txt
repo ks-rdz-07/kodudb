@@ -1,0 +1,15 @@
+KoduDB {{ .Chart.AppVersion }} is starting in namespace {{ .Release.Namespace }}.
+
+{{- if .Values.ingress.enabled }}
+  Console:  https://{{ .Values.ingress.hosts.console }}
+  API:      {{ include "kodudb.apiUrl" . }}
+{{- else }}
+  Console:  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "kodudb.fullname" . }}-console 3100:{{ .Values.console.port }}   then http://localhost:3100
+  API:      kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "kodudb.fullname" . }}-api {{ .Values.api.port }}:{{ .Values.api.port }}
+{{- end }}
+
+Console sign-in (printed once by the API on first start, unless you set secrets.dashboardPassword):
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "kodudb.fullname" . }}-api | grep -A3 sign-in
+
+Secrets are in Secret/{{ include "kodudb.secretName" . }}. It is kept when the release is uninstalled, because
+ENCRYPTION_KEY decrypts stored credentials; back it up together with the database.

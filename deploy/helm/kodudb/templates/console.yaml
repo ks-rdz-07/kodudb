@@ -1,0 +1,46 @@
+{{- $name := include "kodudb.fullname" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-console
+  labels: {{- include "kodudb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: console
+spec:
+  replicas: {{ .Values.console.replicas }}
+  selector:
+    matchLabels: {{- include "kodudb.selector" (dict "root" . "component" "console") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "kodudb.selector" (dict "root" . "component" "console") | nindent 8 }}
+    spec:
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: console
+          image: {{ include "kodudb.image" (dict "root" . "name" "console") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: {{ .Values.console.port }} }
+          env:
+            - { name: PORT, value: {{ .Values.console.port | quote }} }
+            - { name: KODUDB_API_URL, value: "http://{{ $name }}-api:{{ .Values.api.port }}" }
+            - { name: KODUDB_PUBLIC_URL, value: {{ include "kodudb.apiUrl" . | quote }} }
+          readinessProbe:
+            httpGet: { path: /login, port: http }
+            periodSeconds: 10
+          resources: {{- toYaml .Values.console.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-console
+  labels: {{- include "kodudb.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "kodudb.selector" (dict "root" . "component" "console") | nindent 4 }}
+  ports:
+    - { name: http, port: {{ .Values.console.port }}, targetPort: http }

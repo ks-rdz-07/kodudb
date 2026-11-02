@@ -1,0 +1,122 @@
+{{- $name := include "kodudb.fullname" . }}
+{{- $secret := include "kodudb.secretName" . }}
+{{- $s3 := include "kodudb.s3Enabled" . }}
+{{- if and (not .Values.postgres.enabled) (not .Values.externalDatabase.url) (not .Values.externalDatabase.existingSecretKey) }}
+{{- fail "postgres.enabled is false: set externalDatabase.url or externalDatabase.existingSecretKey" }}
+{{- end }}
+{{- if and (gt (int .Values.api.replicas) 1) (not $s3) }}
+{{- fail "api.replicas > 1 needs S3 storage (storage.enabled or externalS3.endpoint); local files cannot be shared between pods" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-api
+  labels: {{- include "kodudb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  {{- if not $s3 }}
+  strategy: { type: Recreate }  # the local files volume is ReadWriteOnce
+  {{- end }}
+  selector:
+    matchLabels: {{- include "kodudb.selector" (dict "root" . "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "kodudb.selector" (dict "root" . "component" "api") | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          image: {{ include "kodudb.image" (dict "root" . "name" "api") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: {{ .Values.api.port }} }
+          env:
+            - { name: PORT, value: {{ .Values.api.port | quote }} }
+            {{- if .Values.postgres.enabled }}
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $secret }}, key: POSTGRES_PASSWORD } }
+            - { name: DATABASE_URL, value: "postgres://postgres:$(POSTGRES_PASSWORD)@{{ $name }}-postgres:5432/kodudb" }
+            {{- else }}
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: {{ $secret }}, key: {{ .Values.externalDatabase.existingSecretKey | default "DATABASE_URL" }} } }
+            {{- end }}
+            {{- range $k := list "JWT_SECRET" "ENCRYPTION_KEY" "DASHBOARD_USERNAME" "DASHBOARD_PASSWORD" }}
+            - name: {{ $k }}
+              valueFrom: { secretKeyRef: { name: {{ $secret }}, key: {{ $k }}, optional: true } }
+            {{- end }}
+            - { name: KODUDB_PUBLIC_URL, value: {{ include "kodudb.apiUrl" . | quote }} }
+            {{- if .Values.api.trustProxy }}
+            - { name: TRUST_PROXY, value: "1" }
+            {{- end }}
+            - { name: STORAGE_ROOT, value: /data/storage }
+            {{- if $s3 }}
+            - { name: S3_ENDPOINT, value: {{ ternary (printf "http://%s-storage:9000" $name) .Values.externalS3.endpoint .Values.storage.enabled | quote }} }
+            - { name: S3_REGION, value: {{ .Values.externalS3.region | quote }} }
+            - name: S3_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: {{ $secret }}, key: S3_ACCESS_KEY } }
+            - name: S3_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: {{ $secret }}, key: S3_SECRET_KEY } }
+            - { name: S3_PUBLIC_URL, value: {{ include "kodudb.s3Url" . | quote }} }
+            {{- with include "kodudb.storageConsoleUrl" . }}
+            - { name: S3_CONSOLE_URL, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
+            {{- with .Values.api.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          {{- if not $s3 }}
+          volumeMounts:
+            - { name: files, mountPath: /data/storage }
+          {{- end }}
+      {{- if not $s3 }}
+      volumes:
+        - name: files
+          persistentVolumeClaim: { claimName: {{ $name }}-files }
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-api
+  labels: {{- include "kodudb.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "kodudb.selector" (dict "root" . "component" "api") | nindent 4 }}
+  ports:
+    - { name: http, port: {{ .Values.api.port }}, targetPort: http }
+{{- if not $s3 }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-files
+  labels: {{- include "kodudb.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.api.filesPersistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests: { storage: {{ .Values.api.filesPersistence.size }} }
+{{- end }}
