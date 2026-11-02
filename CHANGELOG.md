@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+- Per-project file storage provider. RustFS stays the default; a project can instead use AWS S3, Cloudflare R2,
+  Backblaze B2, Wasabi, DigitalOcean Spaces, MinIO, Google Cloud Storage (S3 interoperability) or any other
+  S3-compatible service (Files, Storage provider). The connection is tested before saving, the secret key is stored
+  encrypted, and existing files are not moved. API: `PUT /platform/v1/projects/{slug}/storage/provider`.
+- The S3 access dialog shows the RustFS console login (access key as username, secret key as password).
+
 ## [0.3.2]
 
 ### Security

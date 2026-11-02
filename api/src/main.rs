@@ -11,6 +11,7 @@ mod oauth;
 mod objects;
 mod owner;
 mod platform;
+mod providers;
 mod realtime;
 mod ratelimit;
 mod rest;
