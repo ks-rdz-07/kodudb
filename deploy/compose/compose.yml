@@ -1,0 +1,101 @@
+# KoduDB from published images: Postgres, API, console and S3-compatible storage (RustFS).
+# Used by the Terraform VM modules and suitable for any Docker host.
+#
+#   cp .env.example .env    # then fill in POSTGRES_PASSWORD, S3_ACCESS_KEY, S3_SECRET_KEY (or run ./init-env.sh)
+#   docker compose up -d                       # ports 8787 (API), 3100 (console), 9000/9001 (storage)
+#   docker compose --profile tls up -d         # HTTPS on your domain through Caddy (set DOMAIN in .env)
+#
+# The console sign-in is printed once by the API on first start: docker compose logs api | grep -A3 sign-in
+name: kodudb
+
+x-api-env: &api-env
+  DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/kodudb
+  KODUDB_PUBLIC_URL: ${KODUDB_PUBLIC_URL:-http://localhost:8787}
+  JWT_SECRET: ${JWT_SECRET:-}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+  DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-}
+  DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+  TRUST_PROXY: ${TRUST_PROXY:-}
+  STORAGE_ROOT: /data/storage
+  S3_ENDPOINT: http://storage:9000
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+  S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
+  S3_CONSOLE_URL: ${S3_CONSOLE_URL:-http://localhost:9001/rustfs/console/}
+
+services:
+  db:
+    image: docker.io/library/postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: kodudb
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "kodudb"]
+      interval: 3s
+      retries: 30
+
+  storage:
+    image: docker.io/rustfs/rustfs:${RUSTFS_VERSION:-1.0.4}
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - objects:/data
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:9000:9000"
+      - "${BIND_ADDRESS:-0.0.0.0}:9001:9001"
+
+  api:
+    image: ${KODUDB_IMAGE_REGISTRY:-docker.io/kns777}/kodudb-api:${KODUDB_VERSION:-0.2.0}
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - files:/data/storage
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:8787:8787"
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_started
+
+  console:
+    image: ${KODUDB_IMAGE_REGISTRY:-docker.io/kns777}/kodudb-console:${KODUDB_VERSION:-0.2.0}
+    restart: unless-stopped
+    environment:
+      KODUDB_API_URL: http://api:8787
+      KODUDB_PUBLIC_URL: ${KODUDB_PUBLIC_URL:-http://localhost:8787}
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:3100:3000"
+    depends_on:
+      - api
+
+  # HTTPS with automatic certificates: app.<DOMAIN> (console), api.<DOMAIN>, s3.<DOMAIN>, storage.<DOMAIN>.
+  # Point those DNS names at this host, set DOMAIN and BIND_ADDRESS=127.0.0.1 in .env, then use --profile tls.
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    profiles: ["tls"]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+      - console
+      - storage
+
+volumes:
+  db:
+  files:
+  objects:
+  caddy:

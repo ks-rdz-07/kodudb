@@ -1,0 +1,10 @@
+# KoduDB dev on azure. Replace the placeholders, then: terraform apply -var-file=envs/dev.tfvars
+environment     = "dev"
+subscription_id = "00000000-0000-0000-0000-000000000000"
+location        = "eastus"
+vm_size         = "Standard_B2s"
+disk_gb         = 32
+domain          = "" # empty: plain HTTP on ports 3100/8787/9000/9001
+kodudb_version  = "0.2.0"
+ssh_public_key  = "ssh-ed25519 AAAA... replace with your public key"
+admin_cidr      = "203.0.113.4/32" # your address, for SSH

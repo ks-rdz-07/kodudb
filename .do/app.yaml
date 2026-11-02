@@ -1,0 +1,68 @@
+# DigitalOcean App Platform: KoduDB API and console from published images, with a managed Postgres database.
+#   doctl apps create --spec .do/app.yaml
+# App Platform has no persistent disks, so files go to S3-compatible storage: fill in the S3_* values (for example a
+# DigitalOcean Spaces bucket endpoint and keys, or your own RustFS server; per-project keys need RustFS).
+# After the first deploy, set KODUDB_PUBLIC_URL to the app's public API URL and read the sign-in in the api logs.
+name: kodudb
+region: nyc
+
+databases:
+  - name: db
+    engine: PG
+    version: "17"
+    production: false
+
+services:
+  - name: api
+    image:
+      registry_type: DOCKER_HUB
+      registry: kns777
+      repository: kodudb-api
+      tag: 0.2.0
+    http_port: 8787
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    health_check:
+      http_path: /health
+    routes:
+      - path: /api
+        preserve_path_prefix: false
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: TRUST_PROXY
+        value: "1"
+      - key: KODUDB_PUBLIC_URL
+        value: ${APP_URL}/api
+      - key: S3_ENDPOINT
+        value: https://nyc3.digitaloceanspaces.com
+      - key: S3_REGION
+        value: us-east-1
+      - key: S3_ACCESS_KEY
+        type: SECRET
+        value: change-me
+      - key: S3_SECRET_KEY
+        type: SECRET
+        value: change-me
+      - key: S3_PUBLIC_URL
+        value: https://nyc3.digitaloceanspaces.com
+
+  - name: console
+    image:
+      registry_type: DOCKER_HUB
+      registry: kns777
+      repository: kodudb-console
+      tag: 0.2.0
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    health_check:
+      http_path: /login
+    routes:
+      - path: /
+    envs:
+      - key: KODUDB_API_URL
+        value: ${api.PRIVATE_URL}
+      - key: KODUDB_PUBLIC_URL
+        value: ${APP_URL}/api

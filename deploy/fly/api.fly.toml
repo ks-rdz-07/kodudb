@@ -1,0 +1,36 @@
+# Fly.io: KoduDB API. See deploy/fly/README.md for the full sequence.
+#   fly launch --no-deploy --copy-config -c deploy/fly/api.fly.toml --name <your-api-app>
+#   fly secrets set -c deploy/fly/api.fly.toml DATABASE_URL=postgres://...
+#   fly deploy -c deploy/fly/api.fly.toml
+app = "kodudb-api"
+primary_region = "iad"
+
+[build]
+  image = "docker.io/kns777/kodudb-api:0.2.0"
+
+[env]
+  PORT = "8787"
+  TRUST_PROXY = "1"
+  STORAGE_ROOT = "/data/storage"
+  # KODUDB_PUBLIC_URL = "https://<your-api-app>.fly.dev"
+
+[mounts]
+  source = "kodudb_files"
+  destination = "/data/storage"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"   # keeps realtime WebSockets and background email running
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -15,6 +15,10 @@ The format is based on Keep a Changelog, and this project uses semantic versioni
 - Existing installs move to S3 without losing files: local files are copied into each project's bucket once on
   the first start with S3 configured, and the local copies are kept.
 
+- Deployment from published images: an image-based Compose stack with optional HTTPS (Caddy), a Helm chart
+  for Kubernetes, Terraform for AWS, Google Cloud, Azure, DigitalOcean and Hetzner VMs and for Kubernetes, and
+  blueprints for Render, Fly.io and DigitalOcean App Platform, each with dev, staging and prod profiles.
+
 ### Changed
 - Local file storage still works when no S3 storage is configured (PM2, Windows, buildpacks).
 - The API image includes CA certificates.

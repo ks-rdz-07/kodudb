@@ -1,0 +1,31 @@
+# Production: two API and console replicas (files live in S3, so pods share nothing locally), larger volumes,
+# HTTPS through an ingress controller and cert-manager. For a managed database, set postgres.enabled=false and
+# externalDatabase.url (or existingSecret with a DATABASE_URL key).
+api:
+  replicas: 2
+  resources:
+    requests: { cpu: 250m, memory: 256Mi }
+    limits: { memory: 1Gi }
+console:
+  replicas: 2
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+  hosts:
+    console: app.example.com
+    api: api.example.com
+    s3: s3.example.com
+    storageConsole: storage.example.com
+  tls:
+    - secretName: kodudb-tls
+      hosts: [app.example.com, api.example.com, s3.example.com, storage.example.com]
+postgres:
+  persistence: { size: 50Gi }
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits: { memory: 4Gi }
+storage:
+  persistence: { size: 200Gi }

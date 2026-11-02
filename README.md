@@ -114,8 +114,9 @@ node scripts/seed-demo.mjs            # optional: a "Demo Store" project with sa
 
 ## Deploy anywhere
 
-Dockerfile, Docker Compose, Railpack, Nixpacks, Heroku and Paketo buildpacks, PM2 and Windows Server are
-covered in [docs/deploy.md](docs/deploy.md). The API needs only `DATABASE_URL` and the console only
+Docker Compose, Kubernetes (Helm), Terraform for AWS, Google Cloud, Azure, DigitalOcean and Hetzner, Render,
+Fly.io, DigitalOcean App Platform, Railpack, Nixpacks, buildpacks, PM2 and Windows Server are covered in
+[docs/deploy.md](docs/deploy.md), with dev, staging and prod profiles and a full list of environment variables. The API needs only `DATABASE_URL` and the console only
 `KODUDB_API_URL`: on first start the API generates `JWT_SECRET`, `ENCRYPTION_KEY` and the console sign-in,
 keeps them in its database (so every restart and replica agrees), writes them to `.env` when there is one,
 and prints the sign-in once in its log. The console holds no secrets; it signs in through the API and
