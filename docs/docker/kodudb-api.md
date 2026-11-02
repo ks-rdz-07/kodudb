@@ -22,7 +22,7 @@ services:
     volumes: [objects:/data]
     ports: ["9000:9000", "9001:9001"]
   api:
-    image: kns777/kodudb-api:0.2
+    image: kns777/kodudb-api:0.3
     environment:
       DATABASE_URL: postgres://postgres:change-me@db:5432/kodudb
       S3_ENDPOINT: http://storage:9000
@@ -33,7 +33,7 @@ services:
     ports: ["8787:8787"]
     depends_on: [db, storage]
   console:
-    image: kns777/kodudb-console:0.2
+    image: kns777/kodudb-console:0.3
     environment: { KODUDB_API_URL: http://api:8787, KODUDB_PUBLIC_URL: http://localhost:8787 }
     ports: ["3100:3000"]
 volumes: { db: {}, objects: {} }
@@ -51,8 +51,8 @@ host. The project's deployment guide also covers Kubernetes (Helm), Terraform an
 
 | Tag | Meaning |
 |-----|---------|
-| `0.2.0` | An exact release |
-| `0.2` | The newest patch release of 0.2 |
+| `0.3.0` | An exact release |
+| `0.3` | The newest patch release of 0.3 |
 | `latest` | The newest release |
 
 Every tag is a multi-architecture image for **linux/amd64** and **linux/arm64** (Raspberry Pi 4/5, ARM servers and

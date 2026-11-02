@@ -14,7 +14,7 @@ Compose example with PostgreSQL and file storage.
 docker run -d --name kodudb-console -p 3100:3000 \
   -e KODUDB_API_URL=http://kodudb-api:8787 \
   -e KODUDB_PUBLIC_URL=http://localhost:8787 \
-  kns777/kodudb-console:0.2
+  kns777/kodudb-console:0.3
 ```
 
 Open http://localhost:3100 and sign in with the console credentials the API printed on its first start.
@@ -23,8 +23,8 @@ Open http://localhost:3100 and sign in with the console credentials the API prin
 
 | Tag | Meaning |
 |-----|---------|
-| `0.2.0` | An exact release |
-| `0.2` | The newest patch release of 0.2 |
+| `0.3.0` | An exact release |
+| `0.3` | The newest patch release of 0.3 |
 | `latest` | The newest release |
 
 Multi-architecture: **linux/amd64** and **linux/arm64**, with SBOM and build provenance attestations.

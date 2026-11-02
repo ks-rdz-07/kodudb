@@ -4,14 +4,29 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
-## [Unreleased]
+## [0.3.0]
 
 ### Added
+- Deployment from published images: an image-based Compose stack with optional HTTPS (Caddy), a Helm chart
+  for Kubernetes, Terraform for AWS, Google Cloud, Azure, DigitalOcean and Hetzner VMs and for Kubernetes, and
+  blueprints for Render, Fly.io and DigitalOcean App Platform, each with dev, staging and prod profiles.
 - Device SDKs in `sdk/embedded`: a one-file Python client for Raspberry Pi and other Linux boards (CPython) and
   for Raspberry Pi Pico W and ESP32 (MicroPython), and an Arduino library for ESP32 and ESP8266. Both cover
   sign-in with token refresh, insert (single and batch), upsert, select, update, delete, RPC transactions and
   realtime changes with keep-alive and reconnects.
 - README and media kit focus on IoT, IIoT and embedded real-time data; new hero image.
+- Multi-architecture images (linux/amd64 and linux/arm64, for Raspberry Pi and ARM gateways) with SBOM and
+  provenance attestations, tagged `0.3.0`, `0.3` and `latest`; Docker Hub overviews kept in sync.
+- Sign-in card shows the copyright and the version; README badges for clones, views, stars, forks and pulls.
+
+### Changed
+- Images run as non-root users (API: uid 10001; console: `node`), have built-in health checks and full OCI
+  labels.
+
+### Upgrade notes
+- Docker installs that store files locally (no S3) must give the files volume to the new user once:
+  `docker compose run --rm --user root api chown -R 10001:10001 /data/storage`. Installs using S3 storage
+  (the default Compose stack) need no action.
 
 ## [0.2.0]
 
@@ -23,10 +38,6 @@ The format is based on Keep a Changelog, and this project uses semantic versioni
 - Platform API: `GET /platform/v1/projects/<slug>/storage` and `POST /platform/v1/projects/<slug>/storage/rotate`.
 - Existing installs move to S3 without losing files: local files are copied into each project's bucket once on
   the first start with S3 configured, and the local copies are kept.
-
-- Deployment from published images: an image-based Compose stack with optional HTTPS (Caddy), a Helm chart
-  for Kubernetes, Terraform for AWS, Google Cloud, Azure, DigitalOcean and Hetzner VMs and for Kubernetes, and
-  blueprints for Render, Fly.io and DigitalOcean App Platform, each with dev, staging and prod profiles.
 
 ### Changed
 - Local file storage still works when no S3 storage is configured (PM2, Windows, buildpacks).
