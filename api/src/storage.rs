@@ -104,7 +104,8 @@ pub async fn delete_bucket(State(st): State<AppState>, headers: HeaderMap, Path(
         return Err(err(StatusCode::NOT_FOUND, "bucket not found"));
     }
     if let Err(e) = crate::objects::delete_prefix(&st.storage, Some(&ObjPath::from(id.as_str()))).await {
-        eprintln!("bucket {id} removed but its files were not all deleted: {}", e.1);
+        // Not logging the bucket name: it comes from the request (validated, but keep logs free of user input).
+        eprintln!("a bucket was removed but its files were not all deleted: {}", e.1);
     }
     Ok(StatusCode::NO_CONTENT)
 }
