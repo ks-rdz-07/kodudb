@@ -13,7 +13,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sha1::{Digest, Sha1};
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 
 use crate::{
@@ -122,7 +122,7 @@ fn write_env_file(generated: &[(&str, String)]) {
 
 /// Equal-time comparison of two strings (through fixed-length digests).
 fn same(a: &str, b: &str) -> bool {
-    let (x, y) = (Sha1::digest(a.as_bytes()), Sha1::digest(b.as_bytes()));
+    let (x, y) = (Sha256::digest(a.as_bytes()), Sha256::digest(b.as_bytes()));
     x.iter().zip(y.iter()).fold(0u8, |acc, (p, q)| acc | (p ^ q)) == 0
 }
 
