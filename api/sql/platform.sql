@@ -24,6 +24,14 @@ alter table platform.projects add column if not exists owner_role text;
 alter table platform.projects add column if not exists owner_password_enc bytea;
 alter table platform.projects add column if not exists storage_access_key text;
 alter table platform.projects add column if not exists storage_secret_enc bytea;  -- S3 key of the project (see objects.rs)
+-- Optional own S3-compatible provider of the project (see providers.rs); all null = the bundled RustFS.
+alter table platform.projects add column if not exists storage_provider text;
+alter table platform.projects add column if not exists storage_endpoint text;
+alter table platform.projects add column if not exists storage_region text;
+alter table platform.projects add column if not exists storage_bucket text;
+alter table platform.projects add column if not exists storage_path_style boolean;
+alter table platform.projects add column if not exists storage_custom_access text;
+alter table platform.projects add column if not exists storage_custom_secret_enc bytea;
 
 insert into platform.projects (slug, name, db_name) values ('default', 'Default project', current_database())
   on conflict (slug) do nothing;
