@@ -11,9 +11,11 @@ const KEYWORDS = new Set(`
 const COLORS = { comment: 'var(--gray-10)', string: 'var(--grass-11)', number: 'var(--blue-11)', keyword: 'var(--accent-11)' }
 
 /** Comment syntax per sample language: `--` for SQL, `#` for Python, `//` and block comments for the C family. */
+const COMMENT = { sql: /--[^\n]*/, python: /#[^\n]*/, c: /\/\/[^\n]*|\/\*[\s\S]*?\*\// }
+const REST = /("""[\s\S]*?"""|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`[^`]*`)|\b(\d+(?:\.\d+)?)\b|\b([A-Za-z_]\w*)\b/
 function pattern(lang: string) {
-  const comment = lang === 'sql' ? String.raw`--[^\n]*` : lang === 'python' || lang === 'micropython' ? String.raw`#[^\n]*` : String.raw`\/\/[^\n]*|\/\*[\s\S]*?\*\/`
-  return new RegExp(`(${comment})|("""[\s\S]*?"""|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\`[^\`]*\`)|\b(\d+(?:\.\d+)?)\b|\b([A-Za-z_]\w*)\b`, 'g')
+  const comment = lang === 'sql' ? COMMENT.sql : lang === 'python' || lang === 'micropython' ? COMMENT.python : COMMENT.c
+  return new RegExp(`(${comment.source})|${REST.source}`, 'g')
 }
 
 export function highlight(code: string, lang: string): React.ReactNode[] {
