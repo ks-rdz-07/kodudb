@@ -15,6 +15,7 @@ mod realtime;
 mod ratelimit;
 mod rest;
 mod secrets;
+mod settings;
 mod storage;
 
 use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
@@ -124,8 +125,9 @@ async fn main() {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let opts = PgConnectOptions::from_str(&env("DATABASE_URL")).expect("DATABASE_URL");
 
+    let settings: settings::Handle = Default::default();
     let pool = loop {
-        match PgPoolOptions::new().max_connections(20).connect_with(opts.clone()).await {
+        match settings::on_connect(PgPoolOptions::new().max_connections(20), settings.clone()).connect_with(opts.clone()).await {
             Ok(p) => break p,
             Err(e) => {
                 eprintln!("waiting for database: {e}");
@@ -134,6 +136,7 @@ async fn main() {
         }
     };
     sqlx::raw_sql(platform::PLATFORM_SQL).execute(&pool).await.expect("platform bootstrap");
+    *settings.write().unwrap() = settings::load(&pool, "default").await;
 
     // From the environment, or generated once and kept in the database (see secrets.rs).
     // Stored secrets are encrypted with ENCRYPTION_KEY so JWT_SECRET can rotate on its own.
@@ -166,6 +169,7 @@ async fn main() {
         logs::spawn_writer(pool.clone()),
         pool,
         Arc::new(encryption_key.clone()),
+        settings,
     );
     let registry = Arc::new(platform::Registry::new(root.clone(), encryption_key, (console_user, console_password), opts));
     registry.upgrade_all().await;

@@ -44,11 +44,26 @@ pub async fn middleware(State(st): State<AppState>, req: Request, next: Next) ->
     let ClientIp(ip) = ClientIp::from_request_parts(&mut parts, &()).await.unwrap_or(ClientIp(None));
     let req = Request::from_parts(parts, body);
     let res = next.run(req).await;
-    if !skip(&path) {
+    if !skip(&path) && st.settings.read().unwrap().request_logging {
         // Dropping entries under extreme load beats slowing requests down.
         let _ = st.logs.try_send(Entry { project: st.project.clone(), method, path, route, status: res.status().as_u16() as i32, ms: started.elapsed().as_secs_f32() * 1000.0, ip });
     }
     res
+}
+
+/// Delete rows older than their project's retention (default 14 days), for one project or all.
+pub async fn prune(pool: &PgPool, project: Option<&str>) {
+    let r = sqlx::query(
+        "delete from kodudb.request_log l where ($2::text is null or l.project = $2) and l.at < now() - make_interval(days =>
+           coalesce((select (p.settings->>'log_retention_days')::int from platform.projects p where p.slug = l.project), $1))",
+    )
+    .bind(RETENTION_DAYS)
+    .bind(project)
+    .execute(pool)
+    .await;
+    if let Err(e) = r {
+        eprintln!("request log prune failed: {e}");
+    }
 }
 
 /// Writes log entries in batches (up to BATCH or every second) and prunes old rows hourly.
@@ -83,10 +98,7 @@ pub fn spawn_writer(pool: PgPool) -> mpsc::Sender<Entry> {
             }
             if last_prune.elapsed() > Duration::from_secs(3600) {
                 last_prune = Instant::now();
-                let _ = sqlx::query("delete from kodudb.request_log where at < now() - make_interval(days => $1)")
-                    .bind(RETENTION_DAYS)
-                    .execute(&pool)
-                    .await;
+                prune(&pool, None).await;
             }
         }
     });

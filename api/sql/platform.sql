@@ -24,6 +24,7 @@ alter table platform.projects add column if not exists owner_role text;
 alter table platform.projects add column if not exists owner_password_enc bytea;
 alter table platform.projects add column if not exists storage_access_key text;
 alter table platform.projects add column if not exists storage_secret_enc bytea;  -- S3 key of the project (see objects.rs)
+alter table platform.projects add column if not exists settings jsonb not null default '{}';  -- see settings.rs
 
 insert into platform.projects (slug, name, db_name) values ('default', 'Default project', current_database())
   on conflict (slug) do nothing;

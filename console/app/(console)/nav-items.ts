@@ -1,6 +1,6 @@
 import {
   Activity, BookOpen, Braces, Database, FileClock, FolderKanban, GitBranch, HardDrive, LayoutDashboard,
-  Plug, Radio, ScrollText, Table2, Users,
+  Plug, Radio, ScrollText, Settings, Table2, Users,
 } from 'lucide-react'
 
 // KoduDB's own vocabulary for every destination.
@@ -11,6 +11,7 @@ export const NAV = [
       { href: '/', label: 'Overview', icon: LayoutDashboard },
       { href: '/projects', label: 'Projects & keys', icon: FolderKanban },
       { href: '/versions', label: 'Migrations', icon: GitBranch },
+      { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },
   {

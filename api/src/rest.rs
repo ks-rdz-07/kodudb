@@ -173,7 +173,7 @@ pub async fn select(State(st): State<AppState>, Path(table): Path<String>, heade
         select_list(&p, &cols)?,
         order_clause(&p, &cols)?
     ));
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let body: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     let want_count = headers.get("prefer").and_then(|v| v.to_str().ok()).is_some_and(|v| v.contains("count=exact"));
     let count: Option<i64> = if want_count {
@@ -246,7 +246,7 @@ pub async fn insert(State(st): State<AppState>, Path(table): Path<String>, heade
             None => groups.push((keys, vec![r])),
         }
     }
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let mut out: Vec<Value> = Vec::new();
     for (keys, group) in groups {
         let conflict = match &target {
@@ -299,7 +299,7 @@ pub async fn update(State(st): State<AppState>, Path(table): Path<String>, heade
         "with r as (update public.\"{table}\" set ({cl}) = (select {cl} from jsonb_populate_record(null::public.\"{table}\", $1::jsonb)) where {w} returning *) {}",
         agg("select * from r")
     );
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(json_response(out))
@@ -314,7 +314,7 @@ pub async fn delete(State(st): State<AppState>, Path(table): Path<String>, heade
     let mut binds = Vec::new();
     let w = filters(&p, &cols, &mut binds)?;
     let sql = format!("with r as (delete from public.\"{table}\" where {w} returning *) {}", agg("select * from r"));
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(json_response(out))
@@ -360,7 +360,7 @@ pub async fn rpc(State(st): State<AppState>, Path(func): Path<String>, headers: 
         format!("select coalesce(to_jsonb(r), 'null')::text from {call} r")
     };
     let binds = [Bind::Text(args.to_string())];
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = bind_all(sqlx::query_scalar(sqlx::AssertSqlSafe(sql.as_str())), &binds).fetch_one(&mut *tx).await?;
     tx.commit().await?;
     Ok(json_response(out))
