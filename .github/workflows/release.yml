@@ -1,5 +1,7 @@
 # After every merge to main: when the version in api/Cargo.toml is new, build the API and console
-# container images, push them to GitHub Packages (ghcr.io) and publish a GitHub Release.
+# container images, push them to GitHub Packages (ghcr.io) and Docker Hub, and publish a GitHub Release.
+# Docker Hub needs the repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (a Read & Write access
+# token); without them only ghcr.io is used. Run manually with "republish" to push the current version again.
 name: Release
 
 on:
@@ -7,9 +9,17 @@ on:
     branches: [main]
     paths-ignore: ["docs/**", "marketing/**", "**/*.md", ".github/ISSUE_TEMPLATE/**"]
   workflow_dispatch:
+    inputs:
+      republish:
+        description: Build and push images for the current version even if it is already released
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+
+env:
+  DOCKERHUB_NAMESPACE: kns777
 
 concurrency:
   group: release
@@ -39,20 +49,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push images
-        if: steps.ver.outputs.new == 'true'
+        if: steps.ver.outputs.new == 'true' || inputs.republish
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin
+          else
+            echo "::notice::DOCKERHUB_TOKEN is not set; pushing to ghcr.io only."
+          fi
           OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
           for part in api console; do
-            IMG="ghcr.io/$OWNER/kodudb-$part"
-            docker build -t "$IMG:$VERSION" -t "$IMG:latest" \
-              --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" "./$part"
-            docker push "$IMG:$VERSION"
-            docker push "$IMG:latest"
+            IMAGES="ghcr.io/$OWNER/kodudb-$part"
+            [ -n "$DOCKERHUB_TOKEN" ] && IMAGES="$IMAGES docker.io/$DOCKERHUB_NAMESPACE/kodudb-$part"
+            TAGS=""
+            for img in $IMAGES; do TAGS="$TAGS -t $img:$VERSION -t $img:latest"; done
+            docker build $TAGS --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" "./$part"
+            for img in $IMAGES; do
+              docker push "$img:$VERSION"
+              docker push "$img:latest"
+            done
           done
         env:
           VERSION: ${{ steps.ver.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Publish GitHub Release
         if: steps.ver.outputs.new == 'true'
         run: >
