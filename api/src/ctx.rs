@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use std::{sync::Arc, time::{SystemTime, UNIX_EPOCH}};
 
 use axum::{
     extract::{ConnectInfo, FromRequestParts},
@@ -20,7 +20,10 @@ pub struct AppState {
     pub pool: PgPool,
     pub enc: Arc<EncodingKey>,
     pub dec: Arc<DecodingKey>,
-    pub storage_root: PathBuf,
+    /// This project's file bytes (a local directory or its S3 bucket).
+    pub storage: Arc<dyn object_store::ObjectStore>,
+    /// Where files live for every project (local or S3), and the S3 admin credentials.
+    pub objects: Arc<crate::objects::Backend>,
     pub realtime: broadcast::Sender<String>,
     pub visibility: Arc<crate::realtime::VisibilityCache>,
     /// Column lists per table for the REST API, cached briefly; cleared when SQL runs through the console.
@@ -37,7 +40,8 @@ impl AppState {
         project: String,
         pool: PgPool,
         secret: &str,
-        storage_root: PathBuf,
+        storage: Arc<dyn object_store::ObjectStore>,
+        objects: Arc<crate::objects::Backend>,
         realtime: broadcast::Sender<String>,
         logs: tokio::sync::mpsc::Sender<crate::logs::Entry>,
         platform: PgPool,
@@ -48,7 +52,8 @@ impl AppState {
             pool,
             enc: Arc::new(EncodingKey::from_secret(secret.as_bytes())),
             dec: Arc::new(DecodingKey::from_secret(secret.as_bytes())),
-            storage_root,
+            storage,
+            objects,
             realtime,
             visibility: Arc::default(),
             columns: Arc::default(),

@@ -126,11 +126,22 @@ impl Registry {
             .await
             .map_err(|e| err(StatusCode::SERVICE_UNAVAILABLE, format!("project database unavailable: {e}")))?;
         let (realtime, listener) = crate::realtime::spawn_listener(&pool).await?;
+        let objects = self.root.objects.clone();
+        let store = objects.project_store(slug).await?;
+        if let crate::objects::Backend::S3(_) = objects.as_ref() {
+            let local_root = std::path::PathBuf::from(std::env::var("STORAGE_ROOT").unwrap_or_else(|_| "storage".into()));
+            match crate::objects::migrate_local(&objects, &local_root, slug).await {
+                Ok(0) => {}
+                Ok(n) => eprintln!("copied {n} local files of project {slug} to S3 storage"),
+                Err(e) => eprintln!("{}", e.1),
+            }
+        }
         let state = AppState::new(
             slug.to_string(),
             pool,
             &secret,
-            self.root.storage_root.join("_projects").join(slug),
+            store,
+            objects,
             realtime,
             self.root.logs.clone(),
             self.root.platform.clone(),
@@ -204,12 +215,19 @@ impl Registry {
             let _ = self.drop_project(slug).await;
             return Err(e);
         }
+        if let crate::objects::Backend::S3(s3) = self.root.objects.as_ref() {
+            if let Err(e) = crate::objects::ensure_key(&self.root.platform, &self.root_secret, s3, slug).await {
+                eprintln!("storage key for {slug} not created yet (retried on first use): {}", e.1);
+            }
+        }
         self.describe(slug).await
     }
 
     async fn drop_project(&self, slug: &str) -> R<()> {
         let t = std::time::Instant::now();
         let row = self.project(slug).await?;
+        let storage_key: Option<String> =
+            sqlx::query_scalar("select storage_access_key from platform.projects where slug = $1").bind(slug).fetch_optional(&self.root.platform).await?.flatten();
         self.unload(slug).await;
         let unloaded = t.elapsed();
         sqlx::query(sqlx::AssertSqlSafe(format!("drop database if exists \"{}\" with (force)", row.db_name))).execute(&self.root.platform).await?;
@@ -220,7 +238,12 @@ impl Registry {
         if t.elapsed() > std::time::Duration::from_secs(2) {
             eprintln!("slow project delete {slug}: unload {unloaded:?}, drop database {dropped:?}, total {:?}", t.elapsed());
         }
-        let _ = tokio::fs::remove_dir_all(self.root.storage_root.join("_projects").join(slug)).await;
+        match self.root.objects.as_ref() {
+            crate::objects::Backend::Local(root) => {
+                let _ = tokio::fs::remove_dir_all(crate::objects::Backend::local_dir(root, slug)).await;
+            }
+            backend => crate::objects::drop_project(backend, slug, storage_key.as_deref()).await,
+        }
         Ok(())
     }
 
@@ -317,6 +340,8 @@ pub fn routes(reg: Arc<Registry>) -> Router {
         .route("/platform/v1/projects/{slug}/branches", post(branch))
         .route("/platform/v1/projects/{slug}/rotate-keys", post(rotate_one))
         .route("/platform/v1/projects/{slug}/extensions", post(extension))
+        .route("/platform/v1/projects/{slug}/storage", get(storage_credentials))
+        .route("/platform/v1/projects/{slug}/storage/rotate", post(rotate_storage_key))
         .route("/platform/v1/rotate-keys", post(rotate_all))
         .route("/platform/v1/projects/{slug}/github", put(github_config))
         .route("/platform/v1/projects/{slug}/github/push", post(crate::github::push))
@@ -335,6 +360,24 @@ async fn list(State(reg): State<Arc<Registry>>, headers: HeaderMap) -> R<Json<Va
     .fetch_one(&reg.root.platform)
     .await?;
     Ok(Json(rows))
+}
+
+/// File storage details for a project; with S3, its bucket and access key (created on first request).
+async fn storage_credentials(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {
+    reg.require_root(&headers)?;
+    reg.project(&slug).await?;
+    Ok(Json(crate::objects::credentials(&reg.root.platform, &reg.root_secret, &reg.root.objects, &slug).await?))
+}
+
+/// Replace a project's S3 access key; the old key stops working.
+async fn rotate_storage_key(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {
+    reg.require_root(&headers)?;
+    reg.project(&slug).await?;
+    let Some(s3) = reg.root.objects.s3() else {
+        return Err(err(StatusCode::BAD_REQUEST, "files are stored locally; there is no storage key to rotate"));
+    };
+    crate::objects::issue_key(&reg.root.platform, &reg.root_secret, s3, &slug).await?;
+    Ok(Json(crate::objects::credentials(&reg.root.platform, &reg.root_secret, &reg.root.objects, &slug).await?))
 }
 
 async fn get_one(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {

@@ -7,7 +7,9 @@ out/
 
 # Local configuration and data (secrets live in .env)
 .env
-storage/
+/storage/
+/api/storage/
+/data/
 
 # Local tooling
 .claude/

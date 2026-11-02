@@ -50,6 +50,9 @@ if (rotate) {
   fill('DASHBOARD_USERNAME', 'admin')
   fill('DASHBOARD_PASSWORD', () => token(15))
   fill('KODUDB_PUBLIC_URL', 'http://localhost:8787')
+  // Root credentials of the bundled S3 storage (RustFS). KoduDB uses them to create one limited key per project.
+  fill('S3_ACCESS_KEY', () => 'kodudb' + randomBytes(7).toString('hex'))
+  fill('S3_SECRET_KEY', () => token(30))
   // For hosts that run the API directly (PM2, Windows): the database it connects to.
   fill('DATABASE_URL', () => `postgres://postgres:${env.POSTGRES_PASSWORD || set.POSTGRES_PASSWORD}@127.0.0.1:5432/kodudb`)
 }

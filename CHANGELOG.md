@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [0.2.0]
+
+### Added
+- S3-compatible file storage, with RustFS bundled in Docker Compose (S3 API on port 9000, web console on 9001).
+- Every project gets its own bucket and its own access key, created automatically through the RustFS admin API,
+  limited by policy to that bucket and stored encrypted. Files → *S3 access* in the console shows the endpoint,
+  bucket and key, rotates the key, and links to the storage console.
+- Platform API: `GET /platform/v1/projects/<slug>/storage` and `POST /platform/v1/projects/<slug>/storage/rotate`.
+- Existing installs move to S3 without losing files: local files are copied into each project's bucket once on
+  the first start with S3 configured, and the local copies are kept.
+
+### Changed
+- Local file storage still works when no S3 storage is configured (PM2, Windows, buildpacks).
+- The API image includes CA certificates.
+
+### Security
+- The console sign-in check compares passwords in constant time without hashing them.
+
 ## [0.1.1]
 
 ### Security
