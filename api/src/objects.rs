@@ -177,16 +177,25 @@ pub async fn credentials(platform: &PgPool, enc_key: &str, backend: &Backend, sl
     let Some(s3) = backend.s3() else {
         return Ok(json!({ "backend": "local" }));
     };
-    let (access_key, secret_key) = ensure_key(platform, enc_key, s3, slug).await?;
-    Ok(json!({
+    let mut out = json!({
         "backend": "s3",
         "endpoint": s3.public_url,
         "region": s3.region,
         "bucket": bucket_name(slug),
-        "access_key": access_key,
-        "secret_key": secret_key,
+        "access_key": null,
+        "secret_key": null,
         "console_url": s3.console_url,
-    }))
+    });
+    match ensure_key(platform, enc_key, s3, slug).await {
+        Ok((access_key, secret_key)) => {
+            out["access_key"] = json!(access_key);
+            out["secret_key"] = json!(secret_key);
+        }
+        Err(e) if e.0 == StatusCode::NOT_FOUND && e.1.starts_with("project ") => return Err(e),
+        // e.g. an S3 server without the RustFS admin API: files work, keys cannot be issued.
+        Err(e) => out["key_error"] = json!(format!("Could not create an access key: {}", e.1)),
+    }
+    Ok(out)
 }
 
 /// The project's key, created (and stored encrypted) the first time it is needed.

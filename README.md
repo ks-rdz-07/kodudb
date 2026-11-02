@@ -4,7 +4,7 @@
 
 <p align="center">
   <img alt="Status: preview" src="https://img.shields.io/badge/status-preview-ffc53d?style=for-the-badge">
-  <a href="../../releases"><img alt="Version 0.1.1" src="https://img.shields.io/badge/version-0.1.1-e5484d?style=for-the-badge"></a>
+  <a href="../../releases"><img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-e5484d?style=for-the-badge"></a>
   <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-30a46c?style=for-the-badge">
   <img alt="Docker | Podman | Windows Server" src="https://img.shields.io/badge/runs%20on-Docker%20%7C%20Podman%20%7C%20Windows-3e63dd?style=for-the-badge">
   <br>
@@ -19,8 +19,8 @@
 
 **An open backend platform on Postgres, running on infrastructure you control.**
 Identity, an auto-generated REST API, files, live events, metrics, a change log, external data sources,
-multiple projects with branching, and migrations synced to GitHub. Three containers: Postgres, a Rust API
-(axum + sqlx) and a Next.js console.
+multiple projects with branching, and migrations synced to GitHub. Four containers: Postgres, a Rust API
+(axum + sqlx), a Next.js console and S3-compatible object storage (RustFS).
 
 > [!IMPORTANT]
 > **Preview.** KoduDB is young. Read [Known limits](#known-limits) before you put production data in it, and
@@ -67,6 +67,8 @@ node scripts/seed-demo.mjs            # optional: a "Demo Store" project with sa
 - Console: http://localhost:3100. Sign in with `DASHBOARD_USERNAME` (default `admin`) and `DASHBOARD_PASSWORD` from `.env`.
 - API: http://localhost:8787 (default project), `http://localhost:8787/p/<project>` for others
 - Postgres: `127.0.0.1:54329`
+- File storage: S3 API on http://localhost:9000, storage console on http://localhost:9001/rustfs/console/
+  (Files → *S3 access* in the KoduDB console shows each project's bucket and key, and links to it)
 
 ## Deploy anywhere
 
@@ -121,7 +123,7 @@ are refused). Untrusted extensions are enabled through `POST /platform/v1/projec
 | Two-factor | Authenticator apps (TOTP, RFC 6238): QR setup, a code required after the password (no session until then, email links included), replay-proof codes, 5 wrong codes per 15 min, `aal1`/`aal2` in tokens for policies, admin reset |
 | Sign-in providers | Any number per project. Presets: Google, Apple, Microsoft, GitHub (and Enterprise), GitLab, Discord, Facebook, LinkedIn, Slack, Twitch, Bitbucket, Okta, Auth0, Clerk, Amazon Cognito, Keycloak, authentik, ZITADEL, Authelia, Logto, Casdoor, Ory, Dex, Kanidm, FusionAuth, or any other OpenID Connect provider. OpenID Connect uses discovery, PKCE (S256), a nonce and full ID-token checks (signature from the provider's keys, issuer, audience, expiry); keys are re-fetched when the provider rotates them. Accounts link by verified email only (a per-provider switch can trust a directory you control); a state cookie blocks login CSRF; an authenticator code is still asked for. `GET /auth/v1/providers` lists the ones that are on, for sign-in buttons |
 | Email | Per-project SMTP (password encrypted), optional confirm-before-sign-in, password reset (`/auth/v1/recover`), resend, single-use 1-hour links (stored hashed, redirects only to your site URL), editable HTML templates with live preview, delivery log |
-| Files | Buckets, uploads, public links, row-security-checked private files |
+| Files | Buckets, uploads, public links, row-security-checked private files. Stored in S3-compatible storage (RustFS in Compose) or a local directory; with S3, every project has its own bucket and its own access key that works only on that bucket, created automatically, shown in the console and rotatable |
 | Live events | WebSocket change feed per table; subscribers only receive rows their policies allow |
 | Metrics & request logs | Request rate, latency p50/p95/p99, errors, busiest routes, database health; searchable log with live tail |
 | Change log | Per-table audit trail: who changed which row, before and after |
@@ -237,12 +239,16 @@ Captured with `scripts/screenshots.cjs` against the seeded Demo Store (demo data
 </details>
 
 <details>
-<summary><b>Files, live events and monitoring</b> (6)</summary>
+<summary><b>Files, live events and monitoring</b> (8)</summary>
 <br>
 
 <table>
   <tr>
     <td width="50%" align="center"><img src="docs/samples/08-files.png" alt="Files"><br><sub>Files</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/40-files-s3-access.png" alt="S3 access: bucket, key and storage console link"><br><sub>S3 access: bucket, key and storage console link</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/40-files-s3-access-dark.png" alt="S3 access, dark"><br><sub>S3 access, dark</sub></td>
     <td width="50%" align="center"><img src="docs/samples/09-live-events.png" alt="Live events"><br><sub>Live events</sub></td>
   </tr>
   <tr>

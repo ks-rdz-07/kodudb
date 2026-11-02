@@ -4,7 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | Yes       |
+| 0.2.x   | Yes       |
+| 0.1.x   | No        |
 
 ## Reporting a vulnerability
 
@@ -37,8 +38,11 @@ We aim to acknowledge every report within 7 days.
 - **Sign-in.** Passwords are hashed. Failed sign-ins are rate-limited per email and per client address;
   two-factor codes are replay-proof and limited to 5 wrong attempts per 15 minutes. OpenID Connect uses
   PKCE, a nonce, a state cookie and full ID-token checks. Accounts link by verified email only.
-- **Network.** KoduDB has no telemetry. It connects only to your Postgres, the SMTP server, sign-in
-  providers, GitHub and data sources that you configure.
+- **File storage.** With S3 storage, every project has its own bucket and its own access key, limited by
+  policy to that bucket, so one project's key cannot read another project's files. The storage root
+  credentials stay with the API (from the environment) and are never shown in the console.
+- **Network.** KoduDB has no telemetry. It connects only to your Postgres, file storage, the SMTP server,
+  sign-in providers, GitHub and data sources that you configure.
 - **Proxies.** `X-Forwarded-For` is ignored unless `TRUST_PROXY=1` is set, which you should do only behind a
   reverse proxy you run.
 
