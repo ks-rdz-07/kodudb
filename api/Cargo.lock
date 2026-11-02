@@ -1383,7 +1383,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "futures-util",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "jsonwebtoken",
  "lettre",
  "mongodb",
