@@ -9,8 +9,8 @@ const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500'], variabl
 
 export const metadata: Metadata = { title: 'KoduDB Console', description: 'Postgres backend platform: data, identity, files, live events and migrations.' }
 
-// Follows the OS light/dark preference before first paint, and live afterwards.
-const themeScript = `(function(){var m=matchMedia('(prefers-color-scheme: dark)');function s(){document.documentElement.classList.toggle('dark',m.matches)}s();m.addEventListener('change',s)})()`
+// Applies the saved light/dark choice (or the OS preference for 'system') before first paint, and follows OS changes.
+const themeScript = `(function(){var m=matchMedia('(prefers-color-scheme: dark)');function s(){var p=localStorage.getItem('kodudb-theme')||'system';document.documentElement.classList.toggle('dark',p==='dark'||(p==='system'&&m.matches))}s();m.addEventListener('change',s)})()`
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

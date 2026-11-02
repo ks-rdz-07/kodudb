@@ -9,7 +9,7 @@ type Settings = {
   require_email_confirmation: boolean; site_url: string; smtp_host: string | null; smtp_port: number; smtp_user: string | null
   smtp_from: string | null; smtp_security: 'starttls' | 'tls' | 'none'; smtp_password_set: boolean; updated_at: string
 }
-type Template = { kind: 'confirm' | 'recovery'; subject: string; body: string; updated_at: string }
+type Template = { kind: 'confirm' | 'recovery' | 'password_changed' | 'mfa_enabled' | 'mfa_disabled'; subject: string; body: string; updated_at: string }
 type Sent = { id: number; at: string; to_email: string; kind: string; subject: string | null; status: string; error: string | null }
 
 const field = (label: string, input: React.ReactNode, hint?: string) => (
@@ -131,6 +131,7 @@ export function EmailTemplates() {
 
   useEffect(() => { if (current) setDraft({ subject: current.subject, body: current.body }) }, [current])
   const preview = useMemo(() => (draft ? render(draft.body) : ''), [draft])
+  const link = kind === 'confirm' || kind === 'recovery'
   const dirty = !!current && !!draft && (draft.subject !== current.subject || draft.body !== current.body)
 
   async function save() {
@@ -150,13 +151,13 @@ export function EmailTemplates() {
   if (loading && !data) return <Skeleton rows={6} />
   return (
     <Flex direction="column" gap="3">
-      <Tabs tabs={[{ value: 'confirm', label: 'Confirm sign-up' }, { value: 'recovery', label: 'Reset password' }]} value={kind} onChange={(v) => setKind(v as Template['kind'])}>
+      <Tabs tabs={[{ value: 'confirm', label: 'Confirm sign-up' }, { value: 'recovery', label: 'Reset password' }, { value: 'password_changed', label: 'Password changed' }, { value: 'mfa_enabled', label: 'Two-factor on' }, { value: 'mfa_disabled', label: 'Two-factor off' }]} value={kind} onChange={(v) => setKind(v as Template['kind'])}>
         <ErrorBox error={error} />
         {draft && (
           <Grid columns={{ initial: '1', lg: '2' }} gap="5">
             <Flex direction="column" gap="3">
               {field('Subject', <TextField.Root value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />)}
-              {field('Body (HTML)', <TextArea className="font-mono" rows={14} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />, 'Placeholders: {{link}} (required), {{email}}, {{project}}, {{site_url}}. Values are escaped.')}
+              {field('Body (HTML)', <TextArea className="font-mono" rows={14} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />, (link ? 'Placeholders: {{link}} (required), {{email}}, {{project}}, {{site_url}}. Values are escaped.' : 'A notice sent after the change, without a link. Placeholders: {{email}}, {{project}}, {{site_url}}. Sent only when SMTP is set up.'))}
               <Flex gap="2" justify="end">
                 <Button variant="soft" color="gray" disabled={!dirty} onClick={() => current && setDraft({ subject: current.subject, body: current.body })}>Discard</Button>
                 <Button loading={busy} disabled={!dirty} onClick={save}>Save template</Button>

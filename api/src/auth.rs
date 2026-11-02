@@ -94,6 +94,9 @@ pub fn session_with(st: &AppState, user: Value, aal: &str) -> Value {
 
 pub async fn signup(State(st): State<AppState>, headers: HeaderMap, ClientIp(ip): ClientIp, Json(b): Json<Credentials>) -> R<Json<Value>> {
     st.claims(&headers, None)?;
+    if !st.settings.read().unwrap().allow_signups {
+        return Err(err(StatusCode::FORBIDDEN, "sign-ups are disabled for this project"));
+    }
     let (email, password) = (b.email.unwrap_or_default(), b.password.unwrap_or_default());
     validate(&email, &password)?;
     let confirm = crate::mail::settings(&st).await?.require_email_confirmation;
@@ -229,6 +232,7 @@ async fn apply_update(st: &AppState, id: &str, b: UserUpdate, allow_ban: bool) -
         validate_password(pw)?;
     }
     let meta = b.data.or(b.user_metadata).map(|m| metadata(Some(m))).transpose()?;
+    let changed_password = b.password.is_some();
     let ban = if allow_ban { b.ban } else { None };
     let user: Option<Value> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "update auth.users u set
@@ -243,7 +247,11 @@ async fn apply_update(st: &AppState, id: &str, b: UserUpdate, allow_ban: bool) -
     .bind(ban)
     .fetch_optional(&st.pool)
     .await?;
-    user.ok_or_else(|| err(StatusCode::NOT_FOUND, "user not found"))
+    let user = user.ok_or_else(|| err(StatusCode::NOT_FOUND, "user not found"))?;
+    if changed_password {
+        crate::mail::notify(st, id, "password_changed").await;
+    }
+    Ok(user)
 }
 
 pub async fn update_user(State(st): State<AppState>, headers: HeaderMap, Json(b): Json<UserUpdate>) -> R<Json<Value>> {

@@ -13,6 +13,41 @@ The format is based on Keep a Changelog, and this project uses semantic versioni
   with a generated password stored encrypted; it can be rotated from the console. The address comes from
   `DB_PUBLIC_HOST`, `DB_PUBLIC_PORT` and `DB_PUBLIC_SSLMODE` (Docker Compose defaults to the published port).
   New routes: `GET /platform/v1/projects/{slug}/connection` and `POST .../connection/rotate`.
+- Three account notice emails, editable under Identity, Email templates: password changed, two-factor sign-in
+  turned on, and two-factor sign-in removed (also when an admin resets a user's authenticators). They are sent
+  when the change happens, only once SMTP is set up, and appear in the sent emails list. Their bodies need no
+  `{{link}}`.
+- Project settings: a Settings page in the console and `GET`/`PUT /platform/v1/projects/{slug}/settings`
+  (secret key). Per project: close idle database connections after N minutes, statement timeout, allow new
+  sign-ups (403 when off), request logging with retention in days, require email confirmation (the same
+  setting as on the Identity page), turn realtime off, and limit upload size.
+  - The statement timeout applies to data API, function and file requests; the query console is not limited.
+  - Idle timeouts are set on each new database session of the project's API (not with `ALTER ROLE`, which would
+    also cut the always-idle realtime listener). Changing them reloads the project's connection pool, so live
+    realtime sockets reconnect. For the default project they apply to connections opened after the change.
+  - Request log rows are pruned per project retention (default 14 days, as before).
+- Per-project file storage provider. RustFS stays the default; a project can instead use AWS S3, Cloudflare R2,
+  Backblaze B2, Wasabi, DigitalOcean Spaces, MinIO, Google Cloud Storage (S3 interoperability) or any other
+  S3-compatible service (Files, Storage provider). The connection is tested before saving, the secret key is stored
+  encrypted, and existing files are not moved. API: `PUT /platform/v1/projects/{slug}/storage/provider`.
+- The S3 access dialog shows the RustFS console login (access key as username, secret key as password).
+- Data explorer: sort by any column, search all columns, per-column search (text, `> 5`, `true`, `null`), row numbers
+  with edit and delete actions, and a sticky header.
+- Table actions from a right-click or `⋯` menu: modify (rename, add, drop, change type, nullability, defaults),
+  archive (moves the table to `kodudb_archive`, hidden from the API) and restore, and delete with a typed confirmation
+  that shows the name with a copy button.
+- Primary keys: choose auto-increment, random uuid or app-set when creating a table, and switch between them when
+  modifying one. Integer to uuid conversion rewrites ids and sets a default.
+- REST `or=(a.eq.1,b.ilike.*x*)` filters, parameterised like the others.
+- SDKs page: API URL and public key with copy buttons, root certificate download for devices, and coloured samples
+  for auth, device data and statistics in seven languages.
+- Favicon with the KoduDB mark.
+- Light, dark or system theme switch in the top bar; the choice is remembered.
+
+### Fixed
+- Files: "Copy public link" now copies the full project URL with an encoded file name.
+- Command palette: section labels on the right are no longer cut off.
+- API reference: readable in dark mode (it rendered light-mode text on the dark background).
 
 ## [0.3.2]
 
