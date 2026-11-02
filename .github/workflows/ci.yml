@@ -58,8 +58,8 @@ jobs:
           for i in $(seq 1 90); do curl -fs http://127.0.0.1:8787/health && exit 0; sleep 2; done
           docker compose logs api; exit 1
       # The email, sign-in provider and platform suites start Podman mock servers; run those locally.
-      - name: API and two-factor suites
-        run: node --test --test-concurrency=1 tests/api.test.mjs tests/mfa.test.mjs
+      - name: API, two-factor and S3 storage suites
+        run: node --test --test-concurrency=1 tests/api.test.mjs tests/mfa.test.mjs tests/storage.test.mjs
       - name: Stack logs
         if: failure()
         run: docker compose logs --tail 200
