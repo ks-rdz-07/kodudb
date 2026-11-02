@@ -1,0 +1,63 @@
+# After every merge to main: when the version in api/Cargo.toml is new, build the API and console
+# container images, push them to GitHub Packages (ghcr.io) and publish a GitHub Release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "marketing/**", "**/*.md", ".github/ISSUE_TEMPLATE/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: ver
+        name: Is this a new version?
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' api/Cargo.toml | head -1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::v$VERSION is already released."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push images
+        if: steps.ver.outputs.new == 'true'
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          for part in api console; do
+            IMG="ghcr.io/$OWNER/kodudb-$part"
+            docker build -t "$IMG:$VERSION" -t "$IMG:latest" \
+              --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" "./$part"
+            docker push "$IMG:$VERSION"
+            docker push "$IMG:latest"
+          done
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish GitHub Release
+        if: steps.ver.outputs.new == 'true'
+        run: >
+          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+          --title "KoduDB $VERSION" --generate-notes --prerelease
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

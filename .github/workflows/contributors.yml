@@ -1,0 +1,46 @@
+# Redraws the README contributors image after every merge to main (and weekly).
+# The SVG lives on the unprotected `contributors` branch, so nothing is pushed to the protected main.
+name: Contributors
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contributors
+  cancel-in-progress: true
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push to the `contributors` branch only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Draw contributors.svg
+        run: python .github/scripts/contributors_svg.py "$GITHUB_REPOSITORY" /tmp/contributors.svg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish to the contributors branch
+        run: |
+          mkdir /tmp/pub && cd /tmp/pub
+          git init -q -b contributors
+          cp /tmp/contributors.svg .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add contributors.svg
+          git commit -q -m "Update contributors image"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" contributors
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

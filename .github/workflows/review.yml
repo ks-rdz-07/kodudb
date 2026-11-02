@@ -1,0 +1,68 @@
+# AI code review on every pull request (Claude). Posts inline comments and a summary.
+# Needs the repository secret ANTHROPIC_API_KEY; skipped when it is missing.
+# Pull requests from forks never receive secrets, so for those a maintainer can run it from
+# the Actions tab (workflow_dispatch) after reading the change.
+name: Bot review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to review
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      PR: ${{ github.event.pull_request.number || inputs.pr }}
+    steps:
+      - name: Skip without API key
+        if: env.HAS_KEY != 'true'
+        run: echo "::notice::ANTHROPIC_API_KEY is not set (or this is a fork PR); bot review skipped."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.HAS_KEY == 'true'
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1
+        if: env.HAS_KEY == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ env.PR }}
+
+            Review this pull request for KoduDB, a self-hosted backend platform: a Rust API (axum + sqlx),
+            a Next.js console and Postgres. Read CONTRIBUTING.md and SECURITY.md first. Check, in priority order:
+            1. Security: SQL injection (identifier and literal quoting), row security bypass, project isolation
+               (a project key reaching another database, the platform database or the server), token and key
+               handling (JWT checks, expiry, rotation), secrets stored unencrypted, OAuth/OIDC checks (state,
+               PKCE, nonce, ID-token validation), SSRF in data sources or providers, path traversal in files,
+               new network calls, telemetry.
+            2. Data safety: migrations, branching and deletes must never lose user data without confirmation.
+            3. Correctness bugs and missing error handling.
+            4. Tests: new logic needs a Rust unit test, a console unit test or an end-to-end test in tests/.
+            5. No new dependencies without a reason.
+            Use inline comments for specific lines (only real problems, no style nits).
+            Finish with one PR comment: a short summary and a verdict line "Verdict: approve" or
+            "Verdict: changes requested" with the blocking reasons.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

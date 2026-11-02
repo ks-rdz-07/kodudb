@@ -1,0 +1,12 @@
+{
+  "name": "kodudb-marketing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "images": "node images.mjs",
+    "video": "node images.mjs --video"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

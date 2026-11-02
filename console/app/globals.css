@@ -1,0 +1,102 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Tailwind follows the same .dark class Radix Themes reads. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Framed-sheet shell (taste-skill app style, seed 2026089499):
+  one tinted L-frame (sidebar + 48px top bar, no rule between them) and the work on a white sheet
+  inset 8px from the right and bottom edges, 16px corners, a 1px edge and no shadow.
+  Grid: 228px sidebar + fluid sheet; sheet padding 24px; one 16px gutter everywhere.
+  The brand red lives on the logo, the 2px tab underline, the main data series and one primary action.
+*/
+:root {
+  --frame: #f8f6f6;        /* one low-chroma step of the brand red */
+  --sheet: #ffffff;
+  --sheet-edge: #ebe9e9;
+  --rule: #f1f0f0;
+  --nav-active: #ebe8e8;
+  --chart-grid: #ececec;
+  --status-warning: #b45309;
+  --status-critical: #c4242a;
+  --series-muted: #9a9a9a;
+}
+.dark {
+  --frame: #0e0e0e;
+  --sheet: #151515;
+  --sheet-edge: #242424;
+  --rule: #1f1f1f;
+  --nav-active: #232323;
+  --chart-grid: #262626;
+  --status-warning: #e3a33b;
+  --status-critical: #e5566f;
+  --series-muted: #6f6f6f;
+}
+
+.radix-themes {
+  --default-font-family: var(--font-plex), system-ui, sans-serif;
+  --heading-font-family: var(--font-plex), system-ui, sans-serif;
+  --code-font-family: var(--font-plex-mono), ui-monospace, monospace;
+  --strong-font-family: var(--font-plex), system-ui, sans-serif;
+  --default-font-size: 14px;
+}
+
+@layer base {
+  html, body { height: 100%; }
+  body { background: var(--frame); -webkit-font-smoothing: antialiased; }
+  .num { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .kd-shell { @apply relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-[228px_1fr] lg:grid-rows-[48px_1fr]; }
+  .kd-side { @apply hidden lg:row-span-2 lg:flex lg:h-screen lg:flex-col lg:gap-0.5 lg:overflow-y-auto lg:px-3 lg:pb-3 lg:pt-3 lg:sticky lg:top-0; }
+  .kd-top { @apply sticky top-0 z-20 flex h-12 items-center gap-3 px-4 lg:static lg:px-2 lg:!bg-transparent; background: color-mix(in srgb, var(--frame) 88%, transparent); }
+  .kd-sheet {
+    @apply min-w-0 border p-4 sm:p-6 lg:mb-2 lg:mr-2 lg:rounded-2xl;
+    background: var(--sheet);
+    border-color: var(--sheet-edge);
+  }
+  .kd-nav {
+    @apply flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[14px] no-underline transition-colors;
+    color: var(--gray-11);
+  }
+  .kd-nav:hover { background: var(--gray-a3); color: var(--gray-12); }
+  .kd-nav[aria-current='page'] { background: var(--nav-active); color: var(--gray-12); font-weight: 500; }
+  .kd-nav svg { @apply size-4 shrink-0; stroke-width: 1.6; }
+  .kd-group { @apply mt-4 mb-1 px-2.5 text-[12px]; color: var(--gray-10); }
+
+  /* Tables sit on the sheet: grey sentence-case header, no band, rules one step off the surface. */
+  .kd-table { @apply w-full overflow-auto; }
+  .kd-table .rt-TableCell, .kd-table .rt-TableColumnHeaderCell, .kd-table .rt-TableRowHeaderCell { @apply max-w-80 truncate whitespace-nowrap; }
+  .kd-table .rt-TableColumnHeaderCell { color: var(--gray-11); font-weight: 400; font-size: 12px; }
+  .kd-table td.num, .kd-table th.num { @apply text-right; font-variant-numeric: tabular-nums; }
+  .kd-null { color: var(--gray-9); }
+
+  /* SVG charts: one hue per chart, 3-5 faint gridlines, no y-axis line. */
+  .chart { @apply m-0; }
+  .chart-box { @apply relative; }
+  .chart svg { @apply block h-[180px] w-full overflow-visible; }
+  .chart .gridline { stroke: var(--chart-grid); stroke-width: 1; }
+  .chart .tick { fill: var(--gray-10); font-size: 11px; font-family: var(--font-plex), sans-serif; }
+  .chart .crosshair { stroke: var(--gray-9); stroke-dasharray: 3 3; }
+  .chart .dot { stroke: var(--sheet); stroke-width: 2; }
+  .legend { @apply mb-1.5 flex flex-wrap gap-3.5 text-xs; color: var(--gray-11); }
+  .legend span, .tooltip span { @apply inline-flex items-center gap-1.5; }
+  .legend i, .tooltip i { @apply inline-block size-2 rounded-full; }
+  .tooltip {
+    @apply pointer-events-none absolute top-0 z-[2] flex -translate-x-1/2 flex-col gap-0.5 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-xs shadow-md animate-in fade-in;
+    background: var(--color-panel-solid);
+    border-color: var(--gray-a5);
+  }
+  .barlist { @apply m-0 flex list-none flex-col gap-2 p-0; }
+  .barlist li { @apply grid grid-cols-[minmax(90px,38%)_1fr_auto] items-center gap-3 text-[13px]; }
+  .bl-name { @apply truncate; font-family: var(--font-plex-mono), monospace; font-size: 12px; }
+  .bl-track { @apply h-1.5 rounded-full; background: var(--gray-a3); }
+  .bl-bar { @apply block h-full min-w-0.5 rounded-full transition-[width] duration-500; }
+  .bl-value { @apply tabular-nums; color: var(--gray-11); }
+
+  /* CodeMirror sits in a Radix-styled frame. */
+  .kd-editor { @apply overflow-hidden rounded-md border; border-color: var(--gray-a6); background: var(--color-surface); }
+  .kd-editor:focus-within { border-color: var(--accent-8); box-shadow: 0 0 0 1px var(--accent-8); }
+}

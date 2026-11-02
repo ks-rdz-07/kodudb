@@ -1,0 +1,50 @@
+name: kodudb
+
+services:
+  db:
+    image: docker.io/library/postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run node scripts/gen-env.mjs first}
+      POSTGRES_DB: kodudb
+    volumes:
+      - kodudb-db:/var/lib/postgresql/data
+      - ./api/sql/project.sql:/docker-entrypoint-initdb.d/00-project.sql:ro
+    ports:
+      - "127.0.0.1:54329:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "kodudb"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/kodudb
+      JWT_SECRET: ${JWT_SECRET:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      KODUDB_PUBLIC_URL: ${KODUDB_PUBLIC_URL:-http://localhost:8787}
+      STORAGE_ROOT: /data/storage
+    volumes:
+      - kodudb-storage:/data/storage
+    ports:
+      - "8787:8787"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  console:
+    build: ./console
+    environment:
+      # The console keeps no secrets: it signs in through the API.
+      KODUDB_API_URL: http://api:8787
+      KODUDB_PUBLIC_URL: ${KODUDB_PUBLIC_URL:-http://localhost:8787}
+    ports:
+      - "3100:3000"
+    depends_on:
+      - api
+
+volumes:
+  kodudb-db:
+  kodudb-storage:

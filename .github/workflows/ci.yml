@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: api
+      - name: Rust unit tests
+        working-directory: api
+        run: cargo test --locked
+
+  console:
+    name: Console tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - working-directory: console
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          npx tsc --noEmit
+          npm run build
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Start the stack
+        run: |
+          node scripts/gen-env.mjs > /dev/null   # never print the generated sign-in in the log
+          docker compose up -d --build
+          for i in $(seq 1 90); do curl -fs http://127.0.0.1:8787/health && exit 0; sleep 2; done
+          docker compose logs api; exit 1
+      # The email, sign-in provider and platform suites start Podman mock servers; run those locally.
+      - name: API and two-factor suites
+        run: node --test --test-concurrency=1 tests/api.test.mjs tests/mfa.test.mjs
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs --tail 200

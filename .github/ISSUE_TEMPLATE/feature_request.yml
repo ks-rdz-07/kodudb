@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an improvement to KoduDB
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+  - type: dropdown
+    id: security
+    attributes:
+      label: Does this touch keys, tokens, row security or project isolation?
+      description: Changes in these areas need tests and a careful review.
+      options:
+        - "No"
+        - "Yes"
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

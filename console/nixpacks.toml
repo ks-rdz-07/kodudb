@@ -1,0 +1,6 @@
+# Nixpacks: Node detected from package.json.
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm start"

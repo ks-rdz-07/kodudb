@@ -1,0 +1,6 @@
+# Nixpacks: Rust detected from Cargo.toml; sql/ is compiled into the binary.
+[phases.build]
+cmds = ["cargo build --release"]
+
+[start]
+cmd = "./target/release/kodudb-api"

@@ -1,0 +1,15 @@
+KoduDB
+Copyright 2026 The KoduDB contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party code and assets included in this repository:
+
+- React Bits background components (console/components/react-bits/), by David Haz.
+  Licensed under MIT + Commons Clause. https://reactbits.dev
+- Provider logos from the thesvg package (thesvg.org), MIT. The individual marks used are CC0 or MIT.
+  Logos remain trademarks of their owners and are shown only to identify sign-in providers.
+
+Dependencies installed by Cargo (api/) and npm (console/) are distributed under their own licenses,
+listed in api/Cargo.lock and console/package-lock.json. Container images build on the official
+rust, debian, node and postgres images, which carry their own licenses.

@@ -1,0 +1,115 @@
+# Security gate for every push and pull request (including forks).
+# Runs with a read-only token and never executes contributor code with secrets.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1"   # weekly, catches newly published advisories and signatures
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-audit:
+    name: Rust dependency audit (cargo-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: cargo install cargo-audit --locked
+      - working-directory: api
+        run: cargo audit
+
+  npm-audit:
+    name: Console dependency audit (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - working-directory: console
+        run: npm audit --omit=dev --audit-level=high
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read   # the action lists the PR's commits through the API
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  malware:
+    name: Malware & binary check (ClamAV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Block unexpected binaries in the change
+        if: github.event_name == 'pull_request'
+        run: python3 .github/scripts/check_binaries.py "origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}  # via env, never pasted into the script (template injection)
+      - name: Install ClamAV with fresh signatures
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clamav
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam --quiet
+      - name: Scan the whole tree
+        run: clamscan --recursive --infected --exclude-dir='^\./\.git$' .
+
+  codeql:
+    name: CodeQL
+    # Code scanning is free for public repositories (needs GitHub Advanced Security on private ones).
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, rust, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+
+  dependency-review:
+    name: Dependency review
+    if: ${{ github.event_name == 'pull_request' && !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        with:
+          fail-on-severity: moderate
+          deny-licenses: GPL-3.0-only, AGPL-3.0-only

@@ -1,0 +1,22 @@
+# Dependencies and build output
+node_modules
+.next
+target
+*.tsbuildinfo
+out/
+
+# Local configuration and data (secrets live in .env)
+.env
+storage/
+
+# Local tooling
+.claude/
+.taste-skill/
+marketing/frames/
+
+# IDEs and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

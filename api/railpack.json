@@ -1,0 +1,6 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "deploy": {
+    "startCommand": "sh -c '[ -x ./bin/kodudb-api ] && exec ./bin/kodudb-api || exec ./target/release/kodudb-api'"
+  }
+}

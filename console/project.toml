@@ -1,0 +1,12 @@
+# Cloud Native Buildpacks (Paketo, Heroku CNB): build the console with `npm run build`, start with `npm start`.
+[_]
+schema-version = "0.2"
+id = "kodudb-console"
+
+[[io.buildpacks.build.env]]
+name = "BP_NODE_RUN_SCRIPTS"   # Paketo runs these package.json scripts at build time
+value = "build"
+
+[[io.buildpacks.build.env]]
+name = "NODE_ENV"
+value = "production"

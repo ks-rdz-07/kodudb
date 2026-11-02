@@ -1,0 +1,8 @@
+# Cloud Native Buildpacks (Paketo): no stock builder includes Rust, so use the community Rust buildpack.
+#   pack build kodudb-api --builder paketobuildpacks/builder-jammy-base
+[_]
+schema-version = "0.2"
+id = "kodudb-api"
+
+[[io.buildpacks.group]]
+uri = "docker.io/paketocommunity/rust"
