@@ -4,7 +4,7 @@
 
 <p align="center">
   <img alt="Status: preview" src="https://img.shields.io/badge/status-preview-ffc53d?style=for-the-badge">
-  <a href="../../releases"><img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-e5484d?style=for-the-badge"></a>
+  <a href="../../releases"><img alt="Version 0.3.0" src="https://img.shields.io/badge/version-0.3.0-e5484d?style=for-the-badge"></a>
   <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-30a46c?style=for-the-badge">
   <img alt="Docker | Podman | Windows Server" src="https://img.shields.io/badge/runs%20on-Docker%20%7C%20Podman%20%7C%20Windows-3e63dd?style=for-the-badge">
   <br>
