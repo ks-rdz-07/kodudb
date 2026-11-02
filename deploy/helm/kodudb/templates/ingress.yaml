@@ -1,0 +1,32 @@
+{{- if .Values.ingress.enabled }}
+{{- $name := include "kodudb.fullname" . }}
+{{- $h := .Values.ingress.hosts }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels: {{- include "kodudb.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}{{ toYaml . | nindent 4 }}{{ end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range $host, $backend := dict "console" (list (printf "%s-console" $name) $.Values.console.port) "api" (list (printf "%s-api" $name) $.Values.api.port) "s3" (list (printf "%s-storage" $name) 9000) "storageConsole" (list (printf "%s-storage" $name) 9001) }}
+    {{- if and (index $h $host) (or (has $host (list "console" "api")) $.Values.storage.enabled) }}
+    - host: {{ index $h $host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ index $backend 0 }}
+                port: { number: {{ index $backend 1 }} }
+    {{- end }}
+    {{- end }}
+{{- end }}

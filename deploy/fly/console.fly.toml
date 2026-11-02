@@ -1,0 +1,31 @@
+# Fly.io: KoduDB console. Reaches the API over Fly's private network.
+#   fly launch --no-deploy --copy-config -c deploy/fly/console.fly.toml --name <your-console-app>
+#   fly deploy -c deploy/fly/console.fly.toml
+app = "kodudb-console"
+primary_region = "iad"
+
+[build]
+  image = "docker.io/kns777/kodudb-console:0.2.0"
+
+[env]
+  PORT = "3000"
+  # Private address of the API app (<your-api-app>.internal); replace kodudb-api if you renamed it.
+  KODUDB_API_URL = "http://kodudb-api.internal:8787"
+  # KODUDB_PUBLIC_URL = "https://<your-api-app>.fly.dev"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/login"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

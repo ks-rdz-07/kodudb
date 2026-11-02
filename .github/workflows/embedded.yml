@@ -1,0 +1,47 @@
+# Compiles the Arduino library examples for ESP32 and ESP8266 whenever the device SDK changes.
+name: Embedded
+
+on:
+  push:
+    branches: [main]
+    paths: ["sdk/embedded/**", ".github/workflows/embedded.yml"]
+  pull_request:
+    paths: ["sdk/embedded/**", ".github/workflows/embedded.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  arduino:
+    name: Arduino ${{ matrix.example }} on ${{ matrix.board }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [esp32dev, nodemcuv2]
+        example: [Telemetry, RealtimeRelay]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: pip install platformio
+      - name: Compile
+        run: >
+          pio ci "sdk/embedded/arduino/KoduDB/examples/${{ matrix.example }}/${{ matrix.example }}.ino"
+          --lib sdk/embedded/arduino/KoduDB --board ${{ matrix.board }}
+          -O "lib_deps=bblanchon/ArduinoJson@^7.0.0, links2004/WebSockets@^2.6.0"
+
+  micropython:
+    name: MicroPython compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Import and helpers under MicroPython
+        run: >
+          docker run --rm -v "$PWD/sdk/embedded/python:/sdk:ro" -w /sdk docker.io/micropython/unix:latest
+          -c "import kodudb; assert kodudb.MICROPYTHON; assert kodudb.quote('eq.a b') == 'eq.a%20b'; print('ok')"

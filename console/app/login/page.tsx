@@ -46,6 +46,10 @@ export default function Login() {
             </label>
             {error && <Callout.Root color="red" size="1" role="alert"><Callout.Text>{error}</Callout.Text></Callout.Root>}
             <Button size="3" loading={busy}>Sign in</Button>
+            <Flex justify="between" align="center" pt="3" className="border-t border-[var(--gray-a5)]">
+              <Text size="1" color="gray">© {new Date().getFullYear()} KoduDB contributors</Text>
+              <Text size="1" color="gray">v{process.env.NEXT_PUBLIC_KODUDB_VERSION}</Text>
+            </Flex>
           </Flex>
         </form>
       </Card>

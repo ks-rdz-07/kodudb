@@ -13,14 +13,26 @@
   <img alt="Postgres 15+" src="https://img.shields.io/badge/Postgres-15%2B-336791">
   <img alt="API: Rust" src="https://img.shields.io/badge/API-Rust%20(axum)-b7410e">
   <img alt="Console: Next.js" src="https://img.shields.io/badge/console-Next.js-000000">
+  <br>
+  <a href="../../graphs/traffic"><img alt="Clones" src="../../raw/stats/clones.svg"></a>
+  <a href="../../graphs/traffic"><img alt="Unique cloners" src="../../raw/stats/cloners.svg"></a>
+  <a href="../../graphs/traffic"><img alt="Views" src="../../raw/stats/views.svg"></a>
+  <a href="../../stargazers"><img alt="Stars" src="../../raw/stats/stars.svg"></a>
+  <a href="../../forks"><img alt="Forks" src="../../raw/stats/forks.svg"></a>
+  <img alt="Docker pulls" src="../../raw/stats/docker-pulls.svg">
 </p>
 
 # KoduDB
 
-**An open backend platform on Postgres, running on infrastructure you control.**
+**An open backend and real-time data platform for apps and connected devices, on infrastructure you control.**
 Identity, an auto-generated REST API, files, live events, metrics, a change log, external data sources,
 multiple projects with branching, and migrations synced to GitHub. Four containers: Postgres, a Rust API
 (axum + sqlx), a Next.js console and S3-compatible object storage (RustFS).
+
+**Built for IoT, IIoT and embedded data.** Sensors, PLC gateways and controllers write readings straight to
+Postgres and receive commands the moment they are inserted, over a WebSocket filtered by row-level security, so
+every device sees only its own data. Device SDKs for **ESP32, ESP8266, Raspberry Pi and MicroPython boards**
+handle sign-in, token refresh, batching, transactions and reconnects: see [`sdk/embedded`](sdk/embedded).
 
 > [!TIP]
 > **Built and defended by its contributors.** Every contributor is a guardian of KoduDB. Each fix, review, test
@@ -48,6 +60,8 @@ More options (Podman, PM2, Windows Server, Railpack, Nixpacks, buildpacks) are i
 
 ## Why KoduDB
 
+- **Real-time device data.** ESP32, Raspberry Pi and industrial gateways stream readings in and receive commands
+  instantly; row-level security keeps each device to its own rows. SDKs in [`sdk/embedded`](sdk/embedded).
 - **Self-hosted and open source.** Apache-2.0, no telemetry, runs on your own servers or any container platform.
 - **PostgreSQL at the core.** Every project is a real Postgres database you can connect to with any tool.
 - **Authentication built in.** Email and password, two-factor (TOTP), and sign-in with Google, GitHub, Microsoft, Apple, Okta, Keycloak or any OpenID Connect provider.
@@ -107,8 +121,9 @@ node scripts/seed-demo.mjs            # optional: a "Demo Store" project with sa
 
 ## Deploy anywhere
 
-Dockerfile, Docker Compose, Railpack, Nixpacks, Heroku and Paketo buildpacks, PM2 and Windows Server are
-covered in [docs/deploy.md](docs/deploy.md). The API needs only `DATABASE_URL` and the console only
+Docker Compose, Kubernetes (Helm), Terraform for AWS, Google Cloud, Azure, DigitalOcean and Hetzner, Render,
+Fly.io, DigitalOcean App Platform, Railpack, Nixpacks, buildpacks, PM2 and Windows Server are covered in
+[docs/deploy.md](docs/deploy.md), with dev, staging and prod profiles and a full list of environment variables. The API needs only `DATABASE_URL` and the console only
 `KODUDB_API_URL`: on first start the API generates `JWT_SECRET`, `ENCRYPTION_KEY` and the console sign-in,
 keeps them in its database (so every restart and replica agrees), writes them to `.env` when there is one,
 and prints the sign-in once in its log. The console holds no secrets; it signs in through the API and

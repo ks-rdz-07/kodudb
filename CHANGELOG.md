@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+- Device SDKs in `sdk/embedded`: a one-file Python client for Raspberry Pi and other Linux boards (CPython) and
+  for Raspberry Pi Pico W and ESP32 (MicroPython), and an Arduino library for ESP32 and ESP8266. Both cover
+  sign-in with token refresh, insert (single and batch), upsert, select, update, delete, RPC transactions and
+  realtime changes with keep-alive and reconnects.
+- README and media kit focus on IoT, IIoT and embedded real-time data; new hero image.
+
 ## [0.2.0]
 
 ### Added
@@ -14,6 +23,10 @@ The format is based on Keep a Changelog, and this project uses semantic versioni
 - Platform API: `GET /platform/v1/projects/<slug>/storage` and `POST /platform/v1/projects/<slug>/storage/rotate`.
 - Existing installs move to S3 without losing files: local files are copied into each project's bucket once on
   the first start with S3 configured, and the local copies are kept.
+
+- Deployment from published images: an image-based Compose stack with optional HTTPS (Caddy), a Helm chart
+  for Kubernetes, Terraform for AWS, Google Cloud, Azure, DigitalOcean and Hetzner VMs and for Kubernetes, and
+  blueprints for Render, Fly.io and DigitalOcean App Platform, each with dev, staging and prod profiles.
 
 ### Changed
 - Local file storage still works when no S3 storage is configured (PM2, Windows, buildpacks).

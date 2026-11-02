@@ -1,0 +1,5 @@
+# Development: everything bundled, no ingress (use kubectl port-forward), small volumes.
+postgres:
+  persistence: { size: 2Gi }
+storage:
+  persistence: { size: 5Gi }

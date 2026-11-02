@@ -1,0 +1,18 @@
+# Staging: bundled Postgres and storage, HTTPS through an ingress controller and cert-manager.
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    console: app.staging.example.com
+    api: api.staging.example.com
+    s3: s3.staging.example.com
+    storageConsole: storage.staging.example.com
+  tls:
+    - secretName: kodudb-staging-tls
+      hosts: [app.staging.example.com, api.staging.example.com, s3.staging.example.com, storage.staging.example.com]
+postgres:
+  persistence: { size: 10Gi }
+storage:
+  persistence: { size: 20Gi }
