@@ -143,7 +143,7 @@ describe('confirm sign-up', () => {
     await anon('/auth/v1/signup', { method: 'POST', body: { email: other, password: PASSWORD } })
     const l = linkIn(await waitForMail(other, 'Confirm your email'))
     const loc = (await fetch(`${viaHost(l)}&redirect_to=${encodeURIComponent('https://evil.example/x')}`, { redirect: 'manual' })).headers.get('location')
-    assert.ok(loc.startsWith(SITE), loc)
+    assert.equal(new URL(loc, SITE).origin, new URL(SITE).origin, loc)
   })
   test('an expired link is refused', async () => {
     const late = `late-${RUN}@example.test`
