@@ -6,9 +6,9 @@ use std::{
 };
 
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Query, State},
+    extract::{ws::{rejection::WebSocketUpgradeRejection, Message, WebSocket, WebSocketUpgrade}, Query, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
@@ -26,7 +26,11 @@ pub struct WsQuery {
 }
 
 /// Browsers cannot set WebSocket headers, so keys come as ?apikey=&token=.
-pub async fn ws(State(st): State<AppState>, Query(q): Query<WsQuery>, upgrade: WebSocketUpgrade) -> R<Response> {
+pub async fn ws(
+    State(st): State<AppState>,
+    Query(q): Query<WsQuery>,
+    upgrade: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
+) -> R<Response> {
     let mut h = HeaderMap::new();
     if let Some(v) = q.token.and_then(|t| HeaderValue::from_str(&format!("Bearer {t}")).ok()) {
         h.insert(header::AUTHORIZATION, v);
@@ -35,7 +39,11 @@ pub async fn ws(State(st): State<AppState>, Query(q): Query<WsQuery>, upgrade: W
     if !st.settings.read().unwrap().realtime_enabled {
         return Err(err(StatusCode::FORBIDDEN, "realtime is disabled for this project"));
     }
-    Ok(upgrade.on_upgrade(move |sock| run(st, c, sock)))
+    // Checked after the switch so a disabled project answers 403 even to a plain request.
+    match upgrade {
+        Ok(upgrade) => Ok(upgrade.on_upgrade(move |sock| run(st, c, sock))),
+        Err(rejection) => Ok(rejection.into_response()),
+    }
 }
 
 #[derive(Deserialize)]
