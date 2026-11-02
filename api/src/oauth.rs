@@ -644,12 +644,12 @@ pub async fn put_provider(State(st): State<AppState>, headers: HeaderMap, Path(s
     let preset_id = existing.flatten().or(b.preset.clone()).unwrap_or_else(|| slug.clone());
     sqlx::query(
         "insert into auth.oauth_providers as p (provider, preset, display_name, enabled, client_id, client_secret_enc, enterprise_url, issuer, scopes, trust_email)
-         values ($1, $2, nullif($3, ''), coalesce($4, false), $5, pgp_sym_encrypt(nullif($6, ''), $11), nullif($7, ''), nullif($8, ''), nullif($9, ''), coalesce($10, false))
+         values ($1, $2, nullif($3, ''), coalesce($4, false), $5, pgp_sym_encrypt(nullif($6, ''), $11, 'cipher-algo=aes256, s2k-digest-algo=sha256'), nullif($7, ''), nullif($8, ''), nullif($9, ''), coalesce($10, false))
          on conflict (provider) do update set
            display_name = case when $3::text is null then p.display_name else nullif($3, '') end,
            enabled = coalesce($4, p.enabled),
            client_id = coalesce($5, p.client_id),
-           client_secret_enc = coalesce(pgp_sym_encrypt(nullif($6, ''), $11), p.client_secret_enc),
+           client_secret_enc = coalesce(pgp_sym_encrypt(nullif($6, ''), $11, 'cipher-algo=aes256, s2k-digest-algo=sha256'), p.client_secret_enc),
            enterprise_url = case when $7::text is null then p.enterprise_url else nullif($7, '') end,
            issuer = case when $8::text is null then p.issuer else nullif($8, '') end,
            scopes = case when $9::text is null then p.scopes else nullif($9, '') end,

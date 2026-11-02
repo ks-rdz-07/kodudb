@@ -189,7 +189,7 @@ pub async fn enroll(State(st): State<AppState>, headers: HeaderMap, body: Option
     // An abandoned, never-verified setup is replaced rather than piling up.
     sqlx::query("delete from auth.mfa_factors where user_id = $1::uuid and status = 'unverified'").bind(&user_id).execute(&st.pool).await?;
     let id: String = sqlx::query_scalar(
-        "insert into auth.mfa_factors (user_id, friendly_name, secret_enc) values ($1::uuid, $2, pgp_sym_encrypt($3, $4)) returning id::text",
+        "insert into auth.mfa_factors (user_id, friendly_name, secret_enc) values ($1::uuid, $2, pgp_sym_encrypt($3, $4, 'cipher-algo=aes256, s2k-digest-algo=sha256')) returning id::text",
     )
     .bind(&user_id)
     .bind(name.chars().take(60).collect::<String>())

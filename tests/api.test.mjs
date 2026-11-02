@@ -400,6 +400,22 @@ describe('rest edge cases', () => {
 })
 
 describe('hardening', () => {
+  test('stored secrets are encrypted with AES-256', async () => {
+    // Store a value of our own through the API, so the test never depends on what other suites left behind.
+    const made = await service('/connect/v1/connections', { method: 'POST', body: { name: `aes-${RUN}`, kind: 'postgres', url: 'postgres://u:aes-check@h:5432/db' } })
+    assert.equal(made.status, 200, JSON.stringify(made.data))
+    // OpenPGP symmetric-key packet: byte 3 is the cipher (7 = AES-128, 9 = AES-256), byte 5 the digest (8 = SHA-256).
+    const cols = [['platform.projects', 'jwt_secret_enc'], ['platform.projects', 'owner_password_enc'], ['platform.projects', 'storage_secret_enc'],
+      ['platform.projects', 'github_token_enc'], ['auth.settings', 'smtp_pass_enc'], ['auth.mfa_factors', 'secret_enc'],
+      ['auth.oauth_providers', 'client_secret_enc'], ['kodudb.connections', 'url_encrypted']]
+    const q = cols.map(([t, c]) => `select '${t}.${c}' as col, get_byte(${c}, 3) as cipher, get_byte(${c}, 5) as digest from ${t} where ${c} is not null`).join(' union all ')
+    const r = await sql(q)
+    assert.equal(r.status, 200, JSON.stringify(r.data))
+    assert.ok(r.data.rows.some(([col]) => col === 'kodudb.connections.url_encrypted'), 'expected encrypted values to check')
+    const weak = r.data.rows.filter(([, cipher, digest]) => cipher !== '9' || digest !== '8')
+    assert.deepEqual(weak, [], 'values not encrypted with AES-256 and SHA-256')
+    await service(`/connect/v1/connections/${made.data.id}`, { method: 'DELETE' })
+  })
   test('no pooled connection is left with triggers switched off', async () => {
     const roles = await Promise.all(Array.from({ length: 40 }, () => sql('show session_replication_role')))
     assert.ok(roles.every((r) => r.data.rows[0][0] === 'origin'), JSON.stringify(roles.map((r) => r.data.rows[0][0])))

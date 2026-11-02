@@ -23,7 +23,7 @@ Open http://localhost:3100 and sign in with the console credentials the API prin
 
 | Tag | Meaning |
 |-----|---------|
-| `0.3.1` | An exact release |
+| `0.3.2` | An exact release |
 | `0.3` | The newest patch release of 0.3 |
 | `latest` | The newest release |
 

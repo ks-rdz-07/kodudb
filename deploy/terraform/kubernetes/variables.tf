@@ -28,7 +28,7 @@ variable "namespace" {
 variable "kodudb_version" {
   description = "KoduDB image tag."
   type        = string
-  default     = "0.3.1"
+  default     = "0.3.2"
 }
 
 variable "domain" {

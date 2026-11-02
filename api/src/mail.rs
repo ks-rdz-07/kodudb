@@ -349,7 +349,7 @@ pub async fn put_settings(State(st): State<AppState>, headers: HeaderMap, Json(b
            smtp_host = coalesce($3, smtp_host),
            smtp_port = coalesce($4, smtp_port),
            smtp_user = coalesce($5, smtp_user),
-           smtp_pass_enc = coalesce(pgp_sym_encrypt(nullif($6, ''), $9), smtp_pass_enc),
+           smtp_pass_enc = coalesce(pgp_sym_encrypt(nullif($6, ''), $9, 'cipher-algo=aes256, s2k-digest-algo=sha256'), smtp_pass_enc),
            smtp_from = coalesce($7, smtp_from),
            smtp_security = coalesce($8, smtp_security),
            updated_at = now()

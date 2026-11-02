@@ -73,7 +73,7 @@ runs [RustFS](https://rustfs.com) (Apache-2.0) for this, with root credentials g
 Without them, files go to the local `STORAGE_ROOT` directory as before.
 
 - Every project gets its own bucket (`kdb-<project>`) and its own access key, created through the RustFS admin
-  API and limited by policy to that bucket. Keys are stored encrypted with `ENCRYPTION_KEY`. The console shows
+  API and limited by policy to that bucket. Keys are stored encrypted with AES-256 (`ENCRYPTION_KEY`). The console shows
   them under Files → *S3 access*, with a button to rotate the key and a link to the storage console
   (`S3_CONSOLE_URL`). The platform API has `GET` and `POST …/rotate` on `/platform/v1/projects/<slug>/storage`.
 - `S3_PUBLIC_URL` is the S3 address shown to people and apps; `S3_ENDPOINT` is the one the API uses (inside
