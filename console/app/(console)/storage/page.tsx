@@ -1,26 +1,29 @@
 'use client'
 import { useRef, useState } from 'react'
 import { Badge, Button, Checkbox, DropdownMenu, Flex, IconButton, Table, Text, TextField, Tooltip } from '@radix-ui/themes'
-import { Download, Ellipsis, ExternalLink, FolderSearch, KeyRound, Link2, Plus, RotateCw, Trash2, Upload } from 'lucide-react'
+import { Download, Ellipsis, ExternalLink, FolderSearch, KeyRound, Link2, Plus, RotateCw, Settings2, Trash2, Upload } from 'lucide-react'
 import { fmtBytes, json, kodu } from '@/lib/api'
 import { Empty, ErrorBox, KeyField, Modal, PageHeader, Skeleton, Switch, useConfirm, useLoad, useToast } from '@/components/ui'
+import { ProviderDialog } from './provider-dialog'
 
 type Bucket = { id: string; public: boolean; created_at: string; objects: number; bytes: number }
 type S3Access =
-  | { backend: 'local' }
-  | { backend: 's3'; endpoint: string; region: string; bucket: string; access_key: string | null; secret_key: string | null; console_url: string | null; key_error?: string }
+  | { backend: 'local'; provider?: string }
+  | { backend: 's3'; provider?: string; secret_set?: boolean; endpoint: string; region: string; bucket: string; access_key: string | null; secret_key: string | null; console_url: string | null; key_error?: string }
 type Obj = { id: string; name: string; size: number; mimetype: string | null; created_at: string }
 
-const objPath = (bucket: string, name: string) => `storage/v1/object/${bucket}/${name.split('/').map(encodeURIComponent).join('/')}`
+const encodeName = (name: string) => name.split('/').map(encodeURIComponent).join('/')
+const objPath = (bucket: string, name: string) => `storage/v1/object/${bucket}/${encodeName(name)}`
 
 export default function Files() {
   const buckets = useLoad(() => kodu<Bucket[]>('storage/v1/bucket'))
   const [active, setActive] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [access, setAccess] = useState(false)
+  const [providerOpen, setProviderOpen] = useState(false)
   const storage = useLoad(async () => {
-    const { slug } = (await (await fetch('/api/project')).json()) as { slug: string }
-    return { slug, ...(await kodu<S3Access>(`platform/v1/projects/${slug}/storage`)) }
+    const { slug, endpoint: apiUrl } = (await (await fetch('/api/project')).json()) as { slug: string; endpoint: string }
+    return { slug, apiUrl, ...(await kodu<S3Access>(`platform/v1/projects/${slug}/storage`)) }
   })
   const bucket = buckets.data?.find((b) => b.id === (active ?? buckets.data?.[0]?.id)) ?? null
 
@@ -31,6 +34,7 @@ export default function Files() {
         description="Buckets of files your app uploads. Public buckets serve files to anyone with the link; private files follow row security on storage.objects."
         actions={
           <Flex gap="2">
+            {storage.data && <Button variant="soft" color="gray" onClick={() => setProviderOpen(true)}><Settings2 size={15} />Storage provider</Button>}
             {storage.data?.backend === 's3' && <Button variant="soft" color="gray" onClick={() => setAccess(true)}><KeyRound size={15} />S3 access</Button>}
             <Button onClick={() => setCreating(true)}><Plus size={15} />New bucket</Button>
           </Flex>
@@ -50,16 +54,17 @@ export default function Files() {
           {buckets.data?.length === 0 && <Empty>No buckets yet.</Empty>}
         </nav>
         <section className="min-w-0">
-          {bucket && <FileList key={bucket.id} bucket={bucket} onChanged={buckets.reload} onDeleted={() => { setActive(null); buckets.reload() }} />}
+          {bucket && <FileList apiUrl={storage.data?.apiUrl ?? ''} key={bucket.id} bucket={bucket} onChanged={buckets.reload} onDeleted={() => { setActive(null); buckets.reload() }} />}
         </section>
       </div>
       {storage.data?.backend === 's3' && <S3AccessDialog open={access} onClose={() => setAccess(false)} info={storage.data} onRotated={storage.reload} />}
+      {storage.data && providerOpen && <ProviderDialog open onClose={() => setProviderOpen(false)} slug={storage.data.slug} current={storage.data} onSaved={storage.reload} />}
       <NewBucket open={creating} onClose={() => setCreating(false)} onDone={(id) => { setCreating(false); buckets.reload(); setActive(id) }} />
     </>
   )
 }
 
-function FileList({ bucket, onChanged, onDeleted }: { bucket: Bucket; onChanged: () => void; onDeleted: () => void }) {
+function FileList({ apiUrl, bucket, onChanged, onDeleted }: { apiUrl: string; bucket: Bucket; onChanged: () => void; onDeleted: () => void }) {
   const [prefix, setPrefix] = useState('')
   const files = useLoad(() => kodu<Obj[]>(`storage/v1/object/list/${bucket.id}`, json('POST', { prefix })), [prefix])
   const [busy, setBusy] = useState(false)
@@ -145,7 +150,7 @@ function FileList({ bucket, onChanged, onDeleted }: { bucket: Bucket; onChanged:
                     <DropdownMenu.Content align="end">
                       <DropdownMenu.Item onSelect={() => download(o)}><Download size={14} />Download</DropdownMenu.Item>
                       {bucket.public && (
-                        <DropdownMenu.Item onSelect={() => navigator.clipboard.writeText(`/storage/v1/object/public/${bucket.id}/${o.name}`).then(() => toast('Public path copied'))}><Link2 size={14} />Copy public path</DropdownMenu.Item>
+                        <DropdownMenu.Item onSelect={() => navigator.clipboard.writeText(`${apiUrl}/storage/v1/object/public/${encodeURIComponent(bucket.id)}/${encodeName(o.name)}`).then(() => toast('Public link copied'))}><Link2 size={14} />Copy public link</DropdownMenu.Item>
                       )}
                       <DropdownMenu.Separator />
                       <DropdownMenu.Item color="red" onSelect={async () => {
@@ -206,6 +211,7 @@ function S3AccessDialog({ open, onClose, info, onRotated }: { open: boolean; onC
   const toast = useToast()
   const confirm = useConfirm()
   const [busy, setBusy] = useState(false)
+  const bundled = info.provider === 'rustfs'
   const rotate = async () => {
     if (!(await confirm({ title: 'Rotate the S3 key?', description: 'A new access key is issued for this project and the current one stops working at once. Update any tool that uses it.', action: 'Rotate key', danger: true }))) return
     setBusy(true)
@@ -220,14 +226,16 @@ function S3AccessDialog({ open, onClose, info, onRotated }: { open: boolean; onC
     }
   }
   return (
-    <Modal open={open} onClose={onClose} title="S3 access" description="This project's own bucket and access key. The key works only on this bucket." width="600px">
+    <Modal open={open} onClose={onClose} title="S3 access" description={bundled ? "This project's own bucket and access key on the bundled RustFS. The key works only on this bucket." : 'The S3-compatible provider this project uses.'} width="600px">
       <Flex direction="column" gap="3">
         <KeyField label="Endpoint" value={info.endpoint} />
         <Flex gap="3">
           <div className="flex-1"><KeyField label="Bucket" value={info.bucket} /></div>
           <div className="w-40"><KeyField label="Region" value={info.region} /></div>
         </Flex>
-        {info.access_key && info.secret_key ? (
+        {info.access_key && !info.secret_key && info.secret_set ? (
+          <KeyField label="Access key" value={info.access_key} hint="The secret key is stored encrypted and is not shown again." />
+        ) : info.access_key && info.secret_key ? (
           <>
             <KeyField label="Access key" value={info.access_key} />
             <KeyField label="Secret key" value={info.secret_key} secret hint="Keep it on servers and in tools you trust; it can read and change every file in this bucket." />
@@ -235,12 +243,22 @@ function S3AccessDialog({ open, onClose, info, onRotated }: { open: boolean; onC
         ) : (
           <ErrorBox error={info.key_error ?? 'No access key yet.'} />
         )}
+        {bundled && info.access_key && info.secret_key && (
+          <div className="rounded-md border border-[var(--gray-a6)] p-3">
+            <Text size="2" weight="medium">Storage console login</Text>
+            <Text as="p" size="1" color="gray" mb="2">Sign in to the RustFS console with the access key as the username and the secret key as the password.</Text>
+            <Flex gap="3">
+              <div className="flex-1"><KeyField label="Username" value={info.access_key} /></div>
+              <div className="flex-1"><KeyField label="Password" value={info.secret_key} secret /></div>
+            </Flex>
+          </div>
+        )}
         <Text size="1" color="gray">
-          Use path-style requests (bucket in the path). Files written directly through S3 skip KoduDB&apos;s file list and row
+          {bundled ? 'Use path-style requests (bucket in the path). ' : ''}Files written directly through S3 skip KoduDB&apos;s file list and row
           security; upload through the KoduDB files API when your app needs those.
         </Text>
         <Flex gap="2" justify="between" mt="2">
-          <Button variant="soft" color="red" disabled={busy} onClick={rotate}><RotateCw size={15} />Rotate key</Button>
+          {bundled ? <Button variant="soft" color="red" disabled={busy} onClick={rotate}><RotateCw size={15} />Rotate key</Button> : <span />}
           {info.console_url && (
             <Button asChild variant="soft">
               <a href={info.console_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} />Open storage console</a>

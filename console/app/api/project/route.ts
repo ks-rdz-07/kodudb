@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { PROJECT_COOKIE, currentProject, forget } from '@/lib/project'
+import { PROJECT_COOKIE, PUBLIC_URL, currentProject, forget } from '@/lib/project'
 
 export async function GET() {
   const p = await currentProject()
-  return NextResponse.json({ slug: p.slug, name: p.name })
+  return NextResponse.json({ slug: p.slug, name: p.name, endpoint: PUBLIC_URL + p.path })
 }
 
 /** Drop cached keys for a project (after its keys were rotated). */

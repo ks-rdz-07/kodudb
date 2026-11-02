@@ -108,6 +108,37 @@ describe('S3 file storage', async () => {
     otherCreds = r.data
   })
 
+  test('a project can switch to its own S3 provider and back', async () => {
+    const slug = `s3prov-${RUN}`
+    assert.equal((await call('/platform/v1/projects', { method: 'POST', body: { name: slug } })).status, 200)
+    const base = `/platform/v1/projects/${slug}/storage/provider`
+    const rustfs = (await storage(slug)).data
+    assert.equal(rustfs.provider, 'rustfs')
+    // The bundled RustFS reached with its root keys stands in for any other S3 service (address as the API sees it).
+    const good = { provider: 'minio', endpoint: process.env.KODUDB_S3_INTERNAL ?? 'http://storage:9000', region: 'us-east-1', bucket: rustfs.bucket, access_key: env.S3_ACCESS_KEY, secret_key: env.S3_SECRET_KEY }
+    const put = (body) => call(base, { method: 'PUT', body })
+    assert.equal((await put({ ...good, secret_key: 'wrong-secret' })).status, 400, 'a failing connection is not saved')
+    assert.equal((await storage(slug)).data.provider, 'rustfs')
+    assert.equal((await put({ ...good, endpoint: 'ftp://x' })).status, 400)
+    assert.equal((await call(base, { method: 'PUT', body: good, key: env.PUBLIC_KEY })).status, 403)
+    assert.equal((await call('/platform/v1/projects/default/storage/provider', { method: 'PUT', body: good })).status, 400, 'default project stays on RustFS')
+
+    const saved = await put(good)
+    assert.equal(saved.status, 200, JSON.stringify(saved.data))
+    assert.equal(saved.data.provider, 'minio')
+    assert.equal(saved.data.secret_key, null, 'the secret is never returned')
+    assert.equal(saved.data.secret_set, true)
+    const P = `${API}/p/${slug}`
+    const h = { apikey: (await call(`/platform/v1/projects/${slug}`)).data.secret_key }
+    assert.equal((await fetch(`${P}/storage/v1/bucket`, { method: 'POST', headers: { ...h, 'content-type': 'application/json' }, body: JSON.stringify({ id: 'docs' }) })).status, 200)
+    assert.equal((await fetch(`${P}/storage/v1/object/docs/a.txt`, { method: 'POST', headers: { ...h, 'content-type': 'text/plain' }, body: 'custom' })).status, 200)
+    assert.equal(await (await fetch(`${P}/storage/v1/object/docs/a.txt`, { headers: h })).text(), 'custom')
+    // An empty secret keeps the stored one.
+    assert.equal((await put({ ...good, secret_key: '' })).status, 200)
+    assert.equal((await put({ provider: 'rustfs' })).data.provider, 'rustfs')
+    assert.equal((await call(`/platform/v1/projects/${slug}`, { method: 'DELETE' })).status, 204)
+  })
+
   test('storage details need the root key', async () => {
     assert.equal((await call('/platform/v1/projects/default/storage', { key: env.PUBLIC_KEY })).status, 403)
   })

@@ -174,11 +174,15 @@ impl S3 {
 
 /// A project's storage credentials, as shown in the console.
 pub async fn credentials(platform: &PgPool, enc_key: &str, backend: &Backend, slug: &str) -> R<Value> {
+    if let Some(c) = crate::providers::load(platform, enc_key, slug).await? {
+        return Ok(crate::providers::describe(&c));
+    }
     let Some(s3) = backend.s3() else {
-        return Ok(json!({ "backend": "local" }));
+        return Ok(json!({ "backend": "local", "provider": "local" }));
     };
     let mut out = json!({
         "backend": "s3",
+        "provider": "rustfs",
         "endpoint": s3.public_url,
         "region": s3.region,
         "bucket": bucket_name(slug),

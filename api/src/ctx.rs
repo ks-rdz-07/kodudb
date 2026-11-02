@@ -33,6 +33,8 @@ pub struct AppState {
     pub platform: PgPool,
     /// Key for secrets stored in the database (SMTP passwords, connection strings).
     pub enc_key: Arc<String>,
+    /// This project's settings (see settings.rs); changed through the platform API.
+    pub settings: crate::settings::Handle,
 }
 
 impl AppState {
@@ -46,6 +48,7 @@ impl AppState {
         logs: tokio::sync::mpsc::Sender<crate::logs::Entry>,
         platform: PgPool,
         enc_key: Arc<String>,
+        settings: crate::settings::Handle,
     ) -> Self {
         Self {
             project,
@@ -60,6 +63,7 @@ impl AppState {
             logs,
             platform,
             enc_key,
+            settings,
         }
     }
 
@@ -175,10 +179,16 @@ pub fn require_service(c: &Value) -> R<()> {
 }
 
 /// Transaction running as the caller's Postgres role with JWT claims visible to RLS via auth.uid().
-pub async fn scoped(pool: &PgPool, c: &Value) -> R<Transaction<'static, Postgres>> {
-    let mut tx = pool.begin().await?;
-    sqlx::query("select set_config('request.jwt.claims', $1, true)")
+pub async fn scoped(st: &AppState, c: &Value) -> R<Transaction<'static, Postgres>> {
+    let mut tx = st.pool.begin().await?;
+    let timeout = {
+        let s = st.settings.read().unwrap();
+        s.statement_timeout.then(|| (s.statement_seconds as i64 * 1000).to_string())
+    };
+    // Project setting; without it the database's own statement_timeout stays in force.
+    sqlx::query("select set_config('request.jwt.claims', $1, true), set_config('statement_timeout', coalesce($2, current_setting('statement_timeout')), true)")
         .bind(c.to_string())
+        .bind(timeout)
         .execute(&mut *tx)
         .await?;
     // role() is one of ROLES (checked in claims), so it is safe to inline.

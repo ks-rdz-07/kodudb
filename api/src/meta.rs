@@ -62,7 +62,7 @@ pub async fn columns(State(st): State<AppState>, headers: HeaderMap, Path(table)
         "select coalesce(jsonb_agg(x order by x.position), '[]')::text from (
            select a.attnum as position, a.attname as name, format_type(a.atttypid, a.atttypmod) as type,
                   not a.attnotnull as nullable, pg_get_expr(d.adbin, d.adrelid) as default,
-                  coalesce(a.attnum = any(i.indkey), false) as primary_key
+                  coalesce(a.attnum = any(i.indkey), false) as primary_key, a.attidentity <> '' as identity
            from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace
            left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
            left join pg_index i on i.indrelid = c.oid and i.indisprimary
