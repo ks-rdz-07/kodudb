@@ -1,0 +1,4 @@
+{
+  "kodudb-api": "Open-source backend and real-time data platform for apps and IoT devices: Postgres, auth, REST, S3.",
+  "kodudb-console": "Web console for KoduDB: data, SQL, auth, files, realtime device events, metrics and logs."
+}
