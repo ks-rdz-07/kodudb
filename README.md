@@ -22,6 +22,11 @@ Identity, an auto-generated REST API, files, live events, metrics, a change log,
 multiple projects with branching, and migrations synced to GitHub. Three containers: Postgres, a Rust API
 (axum + sqlx) and a Next.js console.
 
+> [!TIP]
+> **Built and defended by its contributors.** Every contributor is a guardian of KoduDB. Each fix, review, test
+> and report hardens the platform, protects the people who rely on it, and keeps it open and available to
+> everyone, for good. [Join them](CONTRIBUTING.md).
+
 > [!IMPORTANT]
 > **Preview.** KoduDB is young. Read [Known limits](#known-limits) before you put production data in it, and
 > please [report problems](../../issues/new/choose).
