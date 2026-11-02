@@ -212,7 +212,8 @@ export function Tabs({ tabs, value, onChange, children }: { tabs: { value: strin
 }
 
 export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
-  return <RSwitch size="1" color="gray" highContrast checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
+  // On is green, off is amber (see .kd-switch in globals.css), so state reads at a glance.
+  return <RSwitch size="1" color="green" className="kd-switch" checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
 }
 
 export function Select({ value, onChange, options, label, placeholder, size = '2', width }: {

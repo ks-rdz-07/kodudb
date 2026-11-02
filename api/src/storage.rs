@@ -54,7 +54,7 @@ pub fn object_key(bucket: &str, name: &str) -> R<ObjPath> {
 
 pub async fn list_buckets(State(st): State<AppState>, headers: HeaderMap) -> R<Response> {
     let c = st.claims(&headers, None)?;
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = sqlx::query_scalar(
         "select coalesce(jsonb_agg(b order by b.created_at), '[]')::text from (
            select b.*, (select count(*) from storage.objects o where o.bucket_id = b.id) objects,
@@ -113,10 +113,14 @@ pub async fn delete_bucket(State(st): State<AppState>, headers: HeaderMap, Path(
 pub async fn upload(State(st): State<AppState>, method: Method, headers: HeaderMap, Path((bucket, name)): Path<(String, String)>, body: Bytes) -> R<Json<Value>> {
     let c = st.claims(&headers, None)?;
     let key = object_key(&bucket, &name)?;
+    let limit_mb = st.settings.read().unwrap().upload_limit.then(|| st.settings.read().unwrap().upload_mb);
+    if limit_mb.is_some_and(|mb| body.len() as u64 > mb as u64 * 1024 * 1024) {
+        return Err(err(StatusCode::PAYLOAD_TOO_LARGE, format!("file is larger than the project's upload limit of {} MB", limit_mb.unwrap_or_default())));
+    }
     let upsert = method == Method::PUT || headers.get("x-upsert").is_some_and(|v| v == "true");
     let mime = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
     let owner = (role(&c) == "authenticated").then(|| c["sub"].as_str().unwrap_or_default().to_string());
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let row: Option<Value> = sqlx::query_scalar(
         "insert into storage.objects as o (bucket_id, name, owner, size, mimetype) values ($1, $2, $3::uuid, $4, $5)
          on conflict (bucket_id, name) do update set size = excluded.size, mimetype = excluded.mimetype, created_at = now()
@@ -156,7 +160,7 @@ async fn send_file(st: &AppState, key: ObjPath, mime: Option<String>) -> R<Respo
 pub async fn download(State(st): State<AppState>, headers: HeaderMap, Path((bucket, name)): Path<(String, String)>) -> R<Response> {
     let c = st.claims(&headers, None)?;
     let key = object_key(&bucket, &name)?;
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let mime: Option<Option<String>> = sqlx::query_scalar("select mimetype from storage.objects where bucket_id = $1 and name = $2")
         .bind(&bucket)
         .bind(&name)
@@ -182,7 +186,7 @@ pub async fn download_public(State(st): State<AppState>, Path((bucket, name)): P
 pub async fn remove(State(st): State<AppState>, headers: HeaderMap, Path((bucket, name)): Path<(String, String)>) -> R<StatusCode> {
     let c = st.claims(&headers, None)?;
     let key = object_key(&bucket, &name)?;
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let n = sqlx::query("delete from storage.objects where bucket_id = $1 and name = $2")
         .bind(&bucket)
         .bind(&name)
@@ -209,7 +213,7 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Path(bucket): 
     let c = st.claims(&headers, None)?;
     valid_bucket(&bucket)?;
     let q: ListReq = if body.is_empty() { ListReq::default() } else { serde_json::from_slice(&body).map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))? };
-    let mut tx = scoped(&st.pool, &c).await?;
+    let mut tx = scoped(&st, &c).await?;
     let out: String = sqlx::query_scalar(
         "select coalesce(jsonb_agg(o order by o.name), '[]')::text from (
            select id, name, owner, size, mimetype, created_at from storage.objects

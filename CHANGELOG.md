@@ -7,6 +7,15 @@ The format is based on Keep a Changelog, and this project uses semantic versioni
 ## [Unreleased]
 
 ### Added
+- Project settings: a Settings page in the console and `GET`/`PUT /platform/v1/projects/{slug}/settings`
+  (secret key). Per project: close idle database connections after N minutes, statement timeout, allow new
+  sign-ups (403 when off), request logging with retention in days, require email confirmation (the same
+  setting as on the Identity page), turn realtime off, and limit upload size.
+  - The statement timeout applies to data API, function and file requests; the query console is not limited.
+  - Idle timeouts are set on each new database session of the project's API (not with `ALTER ROLE`, which would
+    also cut the always-idle realtime listener). Changing them reloads the project's connection pool, so live
+    realtime sockets reconnect. For the default project they apply to connections opened after the change.
+  - Request log rows are pruned per project retention (default 14 days, as before).
 - Per-project file storage provider. RustFS stays the default; a project can instead use AWS S3, Cloudflare R2,
   Backblaze B2, Wasabi, DigitalOcean Spaces, MinIO, Google Cloud Storage (S3 interoperability) or any other
   S3-compatible service (Files, Storage provider). The connection is tested before saving, the secret key is stored

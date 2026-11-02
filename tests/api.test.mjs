@@ -554,3 +554,110 @@ describe('hardening', () => {
     assert.equal(r.data[0].priority, 2)
   })
 })
+
+describe('project settings', () => {
+  const URL_ = '/platform/v1/projects/default/settings'
+  const put = (body) => service(URL_, { method: 'PUT', body })
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  let original
+
+  // Each test restores what it changed, even when an assertion fails; the hooks restore everything as a backstop.
+  before(async () => { original = (await service(URL_)).data })
+  after(async () => { await put(original) })
+
+  test('settings are service-only and bad values are refused', async () => {
+    const r = await service(URL_)
+    assert.equal(r.status, 200, JSON.stringify(r.data))
+    for (const k of ['idle_close', 'statement_timeout', 'allow_signups', 'request_logging', 'realtime_enabled', 'upload_limit', 'require_email_confirmation']) assert.equal(typeof r.data[k], 'boolean', k)
+    assert.equal((await call(URL_)).status, 403, 'the public key is refused')
+    for (const bad of [{ idle_minutes: 0 }, { idle_minutes: 1441 }, { statement_seconds: 3601 }, { log_retention_days: 366 }, { upload_mb: 0 }, { allow_signups: 'no' }]) {
+      assert.equal((await put(bad)).status, 400, JSON.stringify(bad))
+    }
+  })
+
+  test('sign-ups off returns 403, then on works again', async () => {
+    try {
+      assert.equal((await put({ allow_signups: false })).status, 200)
+      const off = await call('/auth/v1/signup', { method: 'POST', body: { email: `closed-${RUN}@example.test`, password: PASSWORD } })
+      assert.equal(off.status, 403)
+      assert.match(off.data.error, /disabled/)
+      assert.equal((await put({ allow_signups: true })).status, 200)
+      assert.equal((await call('/auth/v1/signup', { method: 'POST', body: { email: `reopened-${RUN}@example.test`, password: PASSWORD } })).status, 200)
+    } finally {
+      await put({ allow_signups: original.allow_signups })
+    }
+  })
+
+  test('statement timeout cancels a slow RPC', async () => {
+    const fn = `slow_${RUN}`
+    assert.equal((await sql(`create function public.${fn}(s float) returns int language plpgsql as 'begin perform pg_sleep(s); return 1; end'`)).status, 200)
+    try {
+      assert.equal((await put({ statement_timeout: true, statement_seconds: 1 })).status, 200)
+      const t = Date.now()
+      const r = await service(`/rest/v1/rpc/${fn}`, { method: 'POST', body: { s: 4 } })
+      assert.ok(r.status >= 400, JSON.stringify(r.data))
+      assert.match(r.data.error, /statement timeout/)
+      assert.ok(Date.now() - t < 3500, 'cancelled well before the 4 seconds were up')
+      assert.equal((await service(`/rest/v1/rpc/${fn}`, { method: 'POST', body: { s: 0.1 } })).status, 200, 'fast statements are unaffected')
+      assert.equal((await put({ statement_timeout: false })).status, 200)
+      assert.equal((await service(`/rest/v1/rpc/${fn}`, { method: 'POST', body: { s: 1.5 } })).status, 200, 'off again: no limit')
+    } finally {
+      await put({ statement_timeout: original.statement_timeout, statement_seconds: original.statement_seconds })
+      await sql(`drop function if exists public.${fn}`)
+    }
+  })
+
+  test('request logging off writes no log rows', async () => {
+    const quiet = `quiet_${RUN}`, loud = `loud_${RUN}`
+    try {
+      assert.equal((await put({ request_logging: false })).status, 200)
+      await service(`/rest/v1/${quiet}`)
+      await sleep(2500) // the log writer flushes every second
+      assert.equal((await service(`/meta/v1/logs?q=${quiet}`)).data.length, 0)
+      assert.equal((await put({ request_logging: true })).status, 200)
+      await service(`/rest/v1/${loud}`)
+      await sleep(2500)
+      assert.equal((await service(`/meta/v1/logs?q=${loud}`)).data.length, 1)
+    } finally {
+      await put({ request_logging: original.request_logging })
+    }
+  })
+
+  test('idle timeouts reach the database sessions of a project', async () => {
+    // A throwaway project: its connection pool is rebuilt when the idle setting changes, so the result is exact.
+    const created = await service('/platform/v1/projects', { method: 'POST', body: { name: `idle ${RUN}` } })
+    assert.equal(created.status, 200, JSON.stringify(created.data))
+    const { slug, secret_key: key } = created.data
+    const base = `/platform/v1/projects/${slug}/settings`
+    try {
+      await call(`/p/${slug}/meta/v1/query`, { key, method: 'POST', body: { query: `create function public.idle_now() returns text language sql as $$ select current_setting('idle_session_timeout') || ' ' || current_setting('idle_in_transaction_session_timeout') $$` } })
+      assert.equal((await service(base, { method: 'PUT', body: { idle_close: true, idle_minutes: 7 } })).status, 200)
+      const on = await call(`/p/${slug}/rest/v1/rpc/idle_now`, { key, method: 'POST', body: {} })
+      assert.equal(on.data, '7min 7min')
+      assert.equal((await service(base, { method: 'PUT', body: { idle_close: false } })).status, 200)
+      assert.equal((await call(`/p/${slug}/rest/v1/rpc/idle_now`, { key, method: 'POST', body: {} })).data, '0 0')
+    } finally {
+      await service(`/platform/v1/projects/${slug}`, { method: 'DELETE' })
+    }
+  })
+
+  test('upload limit, realtime switch and email confirmation are enforced', async () => {
+    const bucket = `${BUCKET}-s`
+    try {
+      assert.equal((await service('/storage/v1/bucket', { method: 'POST', body: { id: bucket, public: false } })).status, 200)
+      assert.equal((await put({ upload_limit: true, upload_mb: 1 })).status, 200)
+      assert.equal((await service(`/storage/v1/object/${bucket}/big.bin`, { method: 'POST', body: new Uint8Array(1024 * 1024 + 1) })).status, 413)
+      const small = await service(`/storage/v1/object/${bucket}/small.bin`, { method: 'POST', body: new Uint8Array(1024) })
+      assert.equal(small.status, 200, JSON.stringify(small.data))
+
+      assert.equal((await put({ realtime_enabled: false })).status, 200)
+      assert.equal((await call(`/realtime/v1/websocket?apikey=${ANON}`)).status, 403)
+
+      assert.equal((await put({ require_email_confirmation: true })).status, 200)
+      assert.equal((await service('/auth/v1/admin/settings')).data.require_email_confirmation, true, 'same storage as the Identity page')
+    } finally {
+      await put({ ...original, require_email_confirmation: original.require_email_confirmation })
+      await service(`/storage/v1/bucket/${bucket}`, { method: 'DELETE' })
+    }
+  })
+})

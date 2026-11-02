@@ -118,3 +118,6 @@
   .kd-editor { @apply overflow-hidden rounded-md border; border-color: var(--gray-a6); background: var(--color-surface); }
   .kd-editor:focus-within { border-color: var(--accent-8); box-shadow: 0 0 0 1px var(--accent-8); }
 }
+
+/* Toggles: off shows an amber track (on is the green accent). Outside a layer so it beats Radix's own track colour. */
+.kd-switch.rt-SwitchRoot[data-state='unchecked']:not([data-disabled])::before { background-color: var(--amber-a5); box-shadow: inset 0 0 0 1px var(--amber-a8); }
