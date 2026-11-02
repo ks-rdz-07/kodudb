@@ -2,7 +2,7 @@ apiVersion: v2
 name: kodudb
 description: Open-source backend platform on PostgreSQL - authentication, REST API, row-level security, file storage, realtime and migrations.
 type: application
-version: 0.3.1
-appVersion: "0.3.1"
+version: 0.3.2
+appVersion: "0.3.2"
 keywords: [postgres, backend, rest-api, authentication, realtime, s3, self-hosted]
 license: Apache-2.0
