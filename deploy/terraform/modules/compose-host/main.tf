@@ -14,7 +14,7 @@ variable "domain" {
 variable "kodudb_version" {
   description = "KoduDB image tag."
   type        = string
-  default     = "0.3.0"
+  default     = "0.3.1"
 }
 
 variable "image_registry" {

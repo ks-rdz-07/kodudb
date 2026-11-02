@@ -322,6 +322,19 @@ describe('console meta, metrics, logs, history', () => {
     assert.equal(r.data.rows[0][2], null)
     assert.equal((await sql('select * from nope_missing')).status, 400)
   })
+  test('a script never leaves its transaction or session state on shared connections', async () => {
+    const owner = (await sql('select current_user as u')).data.rows[0][0]
+    assert.equal((await sql('begin; select 1/0;')).status, 400) // failed transaction, never ended
+    assert.equal((await sql('begin; select 1;')).status, 200) // open transaction, never committed
+    assert.equal((await sql('set role anon')).status, 200) // session-level role change
+    // More requests than the connection pool holds, so a leaked connection would be hit.
+    for (let i = 0; i < 25; i++) {
+      const r = await sql('select current_user as u')
+      assert.equal(r.status, 200, JSON.stringify(r.data))
+      assert.equal(r.data.rows[0][0], owner)
+      assert.equal((await service('/meta/v1/stats')).status, 200)
+    }
+  })
   test('history records who changed what', async () => {
     const h = await service(`/meta/v1/history?table=${TABLE}`)
     assert.ok(h.data.some((c) => c.op === 'UPDATE' && c.actor === a.user.id && c.old_record.done === false && c.new_record.done === true))
