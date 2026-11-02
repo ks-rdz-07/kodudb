@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [0.3.1]
+
+### Fixed
+- Query console scripts now run on their own connection, which is closed afterwards. Before, a script that left
+  a failed or open transaction (for example `begin;` followed by an error) returned its connection to the shared
+  pool, and later requests on that connection failed with "current transaction is aborted, commands ignored
+  until end of transaction block". Session changes such as `SET ROLE` or `search_path` can no longer leak either.
+
 ## [0.3.0]
 
 ### Added

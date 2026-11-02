@@ -83,7 +83,16 @@ pub struct SqlReq {
 pub async fn query(State(st): State<AppState>, headers: HeaderMap, Json(b): Json<SqlReq>) -> R<Json<Value>> {
     require_service(&st.claims(&headers, None)?)?;
     let started = std::time::Instant::now();
-    let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(b.query.as_str())).fetch_all(&st.pool).await;
+    // A script can leave its connection in an open or failed transaction ("begin; ...") or change session
+    // state (SET ROLE, search_path, temp tables). Run it on its own connection and close that afterwards, so
+    // nothing it leaves behind reaches the shared pool. A one-connection pool keeps this future Send.
+    let own = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(std::time::Duration::from_secs(10))
+        .connect_with((*st.pool.connect_options()).clone())
+        .await?;
+    let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(b.query.as_str())).fetch_all(&own).await;
+    own.close().await;
     // Any statement may have changed a table's shape: the REST API re-reads columns on its next request.
     st.columns.lock().unwrap().clear();
     let rows = rows?;

@@ -51,7 +51,7 @@ host. The project's deployment guide also covers Kubernetes (Helm), Terraform an
 
 | Tag | Meaning |
 |-----|---------|
-| `0.3.0` | An exact release |
+| `0.3.1` | An exact release |
 | `0.3` | The newest patch release of 0.3 |
 | `latest` | The newest release |
 

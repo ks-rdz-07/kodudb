@@ -5,7 +5,7 @@ app = "kodudb-console"
 primary_region = "iad"
 
 [build]
-  image = "docker.io/kns777/kodudb-console:0.3.0"
+  image = "docker.io/kns777/kodudb-console:0.3.1"
 
 [env]
   PORT = "3000"

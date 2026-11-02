@@ -4,6 +4,6 @@ region         = "us-east-1"
 instance_type  = "t3.medium"
 disk_gb        = 50
 domain         = "staging.example.com" # HTTPS on app./api./s3./storage.<domain>
-kodudb_version = "0.3.0"
+kodudb_version = "0.3.1"
 ssh_public_key = "ssh-ed25519 AAAA... replace with your public key"
 admin_cidr     = "203.0.113.4/32" # your address, for SSH

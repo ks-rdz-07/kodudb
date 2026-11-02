@@ -51,7 +51,7 @@ services:
       - "${BIND_ADDRESS:-0.0.0.0}:9001:9001"
 
   api:
-    image: ${KODUDB_IMAGE_REGISTRY:-docker.io/kns777}/kodudb-api:${KODUDB_VERSION:-0.3.0}
+    image: ${KODUDB_IMAGE_REGISTRY:-docker.io/kns777}/kodudb-api:${KODUDB_VERSION:-0.3.1}
     restart: unless-stopped
     environment: *api-env
     volumes:
@@ -65,7 +65,7 @@ services:
         condition: service_started
 
   console:
-    image: ${KODUDB_IMAGE_REGISTRY:-docker.io/kns777}/kodudb-console:${KODUDB_VERSION:-0.3.0}
+    image: ${KODUDB_IMAGE_REGISTRY:-docker.io/kns777}/kodudb-console:${KODUDB_VERSION:-0.3.1}
     restart: unless-stopped
     environment:
       KODUDB_API_URL: http://api:8787
