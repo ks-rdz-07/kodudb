@@ -199,6 +199,7 @@ Keep each environment's secrets separate: never copy `ENCRYPTION_KEY` or the dat
 | Variable | Used by | Default | Purpose |
 |----------|---------|---------|---------|
 | `DATABASE_URL` | API | — (required) | Postgres URL; the user must be able to create databases and roles for extra projects |
+| `DB_PUBLIC_HOST`, `DB_PUBLIC_PORT`, `DB_PUBLIC_SSLMODE` | API | unset, `5432`, `prefer` | Address and SSL mode shown for direct database connections (Data sources) |
 | `KODUDB_PUBLIC_URL` | API, console | `http://localhost:8787` | Public API address, used in email and sign-in links |
 | `PORT` | API, console | `8787` / `3000` | Listen port |
 | `JWT_SECRET` | API | generated and stored | Signs keys and tokens |

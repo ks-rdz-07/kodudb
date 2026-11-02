@@ -25,6 +25,10 @@ services:
       DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       KODUDB_PUBLIC_URL: ${KODUDB_PUBLIC_URL:-http://localhost:8787}
+      # Address shown for direct database connections: the port published by the db service above.
+      DB_PUBLIC_HOST: ${DB_PUBLIC_HOST:-127.0.0.1}
+      DB_PUBLIC_PORT: ${DB_PUBLIC_PORT:-54329}
+      DB_PUBLIC_SSLMODE: ${DB_PUBLIC_SSLMODE:-prefer}
       # Files go to the bundled S3 storage. Earlier local files in /data/storage are copied over once and kept.
       STORAGE_ROOT: /data/storage
       S3_ENDPOINT: http://storage:9000

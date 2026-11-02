@@ -359,6 +359,8 @@ pub fn routes(reg: Arc<Registry>) -> Router {
         .route("/platform/v1/projects/{slug}/extensions", post(extension))
         .route("/platform/v1/projects/{slug}/storage", get(storage_credentials))
         .route("/platform/v1/projects/{slug}/storage/rotate", post(rotate_storage_key))
+        .route("/platform/v1/projects/{slug}/connection", get(connection))
+        .route("/platform/v1/projects/{slug}/connection/rotate", post(rotate_connection))
         .route("/platform/v1/projects/{slug}/storage/provider", put(set_storage_provider))
         .route("/platform/v1/rotate-keys", post(rotate_all))
         .route("/platform/v1/projects/{slug}/settings", get(settings_get).put(settings_put))
@@ -425,6 +427,20 @@ async fn set_storage_provider(State(reg): State<Arc<Registry>>, headers: HeaderM
     }
     reg.unload(&slug).await; // the next request opens the new store
     Ok(Json(crate::objects::credentials(db, &reg.root_secret, &reg.root.objects, &slug).await?))
+}
+
+/// Direct Postgres connection details (a per-project login role, created on first request).
+async fn connection(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {
+    reg.require_root(&headers)?;
+    let db = reg.project(&slug).await?.db_name;
+    Ok(Json(crate::direct::details(&reg.root.platform, &reg.root_secret, &slug, &db, false).await?))
+}
+
+/// New password for the direct connection role; the old one and open sessions stop working.
+async fn rotate_connection(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {
+    reg.require_root(&headers)?;
+    let db = reg.project(&slug).await?.db_name;
+    Ok(Json(crate::direct::details(&reg.root.platform, &reg.root_secret, &slug, &db, true).await?))
 }
 
 async fn get_one(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {

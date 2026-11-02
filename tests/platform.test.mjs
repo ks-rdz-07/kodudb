@@ -129,6 +129,44 @@ describe('projects', () => {
   })
 })
 
+describe('direct connection', () => {
+  // Connects from a throwaway client container on the stack network (the database host there is `db`).
+  const psql = (c, sql, db = c.database) => {
+    const r = spawnSync('podman', ['run', '--rm', '--network', 'kodudb_default', '-e', `PGPASSWORD=${c.password}`, 'docker.io/library/postgres:17-alpine',
+      'psql', '-h', 'db', '-U', c.user, '-d', db, '-At', '-c', sql], { encoding: 'utf8' })
+    return { ok: r.status === 0, out: r.stdout.trim(), err: r.stderr }
+  }
+  let conn
+  test('returns a limited login role, never the superuser', async () => {
+    const r = await root(`/platform/v1/projects/${shop.slug}/connection`)
+    assert.equal(r.status, 200, JSON.stringify(r.data))
+    conn = r.data
+    assert.equal(conn.database, shop.db_name)
+    assert.equal(conn.user, `p_shop_${RUN}_direct`)
+    assert.notEqual(conn.user, 'postgres')
+    assert.ok(conn.uri.startsWith(`postgresql://${conn.user}:${conn.password}@`) && conn.uri.includes(`/${conn.database}?sslmode=`))
+    assert.equal((await root(`/platform/v1/projects/${shop.slug}/connection`)).data.password, conn.password) // stable until rotated
+    assert.equal((await root('/platform/v1/projects/default/connection')).status, 400)
+    assert.equal((await call(`/platform/v1/projects/${shop.slug}/connection`, { key: env.PUBLIC_KEY })).status, 403)
+  })
+  test('works in its own database and nowhere else', () => {
+    const own = psql(conn, 'select count(*) from public.orders')
+    assert.ok(own.ok, own.err)
+    assert.equal(own.out, '3')
+    assert.equal(psql(conn, 'select current_user').out, `p_shop_${RUN}_owner`) // acts as the table owner, so new tables match the API's
+    assert.ok(!psql(conn, 'select 1', 'kodudb').ok)
+    assert.ok(!psql(conn, 'select 1', 'postgres').ok)
+    assert.equal(psql(conn, 'select rolsuper from pg_roles where rolname = current_user').out, 'f')
+  })
+  test('rotating changes the password and ends the old one', async () => {
+    const r = await root(`/platform/v1/projects/${shop.slug}/connection/rotate`, { method: 'POST' })
+    assert.equal(r.status, 200, JSON.stringify(r.data))
+    assert.notEqual(r.data.password, conn.password)
+    assert.ok(!psql(conn, 'select 1').ok)
+    assert.ok(psql(r.data, 'select 1').ok)
+  })
+})
+
 describe('schema versioning', () => {
   test('every DDL statement is recorded as a migration', async () => {
     const m = await svc(shop)('/meta/v1/migrations')
