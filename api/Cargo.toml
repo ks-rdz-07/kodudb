@@ -19,7 +19,7 @@ tower = { version = "0.5", features = ["util"] }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
 object_store = { version = "0.14", default-features = false, features = ["aws", "fs"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-base64 = "0.22"
+base64 = "0.23"
 hmac = "0.13"
 sha1 = "0.11"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
