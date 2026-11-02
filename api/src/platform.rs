@@ -352,6 +352,8 @@ pub fn routes(reg: Arc<Registry>) -> Router {
         .route("/platform/v1/projects/{slug}/extensions", post(extension))
         .route("/platform/v1/projects/{slug}/storage", get(storage_credentials))
         .route("/platform/v1/projects/{slug}/storage/rotate", post(rotate_storage_key))
+        .route("/platform/v1/projects/{slug}/connection", get(connection))
+        .route("/platform/v1/projects/{slug}/connection/rotate", post(rotate_connection))
         .route("/platform/v1/rotate-keys", post(rotate_all))
         .route("/platform/v1/projects/{slug}/github", put(github_config))
         .route("/platform/v1/projects/{slug}/github/push", post(crate::github::push))
@@ -388,6 +390,20 @@ async fn rotate_storage_key(State(reg): State<Arc<Registry>>, headers: HeaderMap
     };
     crate::objects::issue_key(&reg.root.platform, &reg.root_secret, s3, &slug).await?;
     Ok(Json(crate::objects::credentials(&reg.root.platform, &reg.root_secret, &reg.root.objects, &slug).await?))
+}
+
+/// Direct Postgres connection details (a per-project login role, created on first request).
+async fn connection(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {
+    reg.require_root(&headers)?;
+    let db = reg.project(&slug).await?.db_name;
+    Ok(Json(crate::direct::details(&reg.root.platform, &reg.root_secret, &slug, &db, false).await?))
+}
+
+/// New password for the direct connection role; the old one and open sessions stop working.
+async fn rotate_connection(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {
+    reg.require_root(&headers)?;
+    let db = reg.project(&slug).await?.db_name;
+    Ok(Json(crate::direct::details(&reg.root.platform, &reg.root_secret, &slug, &db, true).await?))
 }
 
 async fn get_one(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(slug): Path<String>) -> R<Json<Value>> {

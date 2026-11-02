@@ -11,6 +11,7 @@ pub const PLATFORM_COLUMNS: &[(&str, &str)] = &[
     ("platform.projects", "jwt_secret_enc"),
     ("platform.projects", "github_token_enc"),
     ("platform.projects", "owner_password_enc"),
+    ("platform.projects", "direct_password_enc"),
     ("platform.projects", "storage_secret_enc"),
 ];
 
@@ -50,6 +51,7 @@ mod tests {
     fn every_encryption_uses_aes256() {
         let sources = [
             include_str!("connect.rs"),
+            include_str!("direct.rs"),
             include_str!("mail.rs"),
             include_str!("mfa.rs"),
             include_str!("oauth.rs"),

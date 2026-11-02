@@ -4,6 +4,7 @@ import { Badge, Button, Callout, Flex, IconButton, Text, TextArea, TextField, To
 import { Play, Plug, Plus, Trash2 } from 'lucide-react'
 import { json, kodu } from '@/lib/api'
 import { SqlEditor } from '@/components/sql-editor'
+import { DirectConnection } from './direct-connection'
 import { DataTable, Empty, ErrorBox, Modal, PageHeader, Select, Skeleton, useConfirm, useLoad, useToast } from '@/components/ui'
 
 type Kind = 'postgres' | 'mysql' | 'mssql' | 'mongodb'
@@ -19,6 +20,7 @@ const KINDS: Record<Kind, { label: string; placeholder: string; sample: string }
 
 export default function DataSources() {
   const conns = useLoad(() => kodu<Conn[]>('connect/v1/connections'))
+  const project = useLoad(async () => ((await (await fetch('/api/project')).json()) as { slug: string }).slug)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const active = conns.data?.find((c) => c.id === (activeId ?? conns.data?.[0]?.id)) ?? null
@@ -27,9 +29,10 @@ export default function DataSources() {
     <>
       <PageHeader
         title="Data sources"
-        description="Query external PostgreSQL, MySQL, SQL Server and MongoDB databases next to your own. Connection strings are encrypted at rest and never sent back to the browser."
+        description="Connect to this project's database directly, or query external PostgreSQL, MySQL, SQL Server and MongoDB databases next to your own. Connection strings are encrypted at rest and never sent back to the browser."
         actions={<Button onClick={() => setAdding(true)}><Plus size={15} />Add data source</Button>}
       />
+      {project.data && <div className="mb-6"><DirectConnection slug={project.data} /></div>}
       <ErrorBox error={conns.error} />
       <div className="grid items-start gap-5 lg:grid-cols-[208px_1fr]">
         <nav aria-label="Data sources" className="flex flex-col gap-0.5">

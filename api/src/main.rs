@@ -2,6 +2,7 @@ mod auth;
 mod connect;
 mod crypto;
 mod ctx;
+mod direct;
 mod github;
 mod logs;
 mod mail;

@@ -22,6 +22,8 @@ end $$;
 -- The login role the API uses for this project's database (never the superuser).
 alter table platform.projects add column if not exists owner_role text;
 alter table platform.projects add column if not exists owner_password_enc bytea;
+alter table platform.projects add column if not exists direct_role text;  -- login role for direct connections (see direct.rs)
+alter table platform.projects add column if not exists direct_password_enc bytea;
 alter table platform.projects add column if not exists storage_access_key text;
 alter table platform.projects add column if not exists storage_secret_enc bytea;  -- S3 key of the project (see objects.rs)
 

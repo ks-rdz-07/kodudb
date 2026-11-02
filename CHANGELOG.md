@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+- Data sources now has a Direct connection section for the selected project: host, port, database, user,
+  password and SSL mode, a ready connection string, and copy-ready snippets for psql, Node.js, Python, Go,
+  Java, C#, Rust and a plain URI. Each project gets its own login role, limited to that project's database,
+  with a generated password stored encrypted; it can be rotated from the console. The address comes from
+  `DB_PUBLIC_HOST`, `DB_PUBLIC_PORT` and `DB_PUBLIC_SSLMODE` (Docker Compose defaults to the published port).
+  New routes: `GET /platform/v1/projects/{slug}/connection` and `POST .../connection/rotate`.
+
 ## [0.3.2]
 
 ### Security
