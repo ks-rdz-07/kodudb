@@ -31,11 +31,14 @@ function Code({ shown, copy }: { shown: string; copy: string }) {
   return (
     <div className="relative">
       <pre className="overflow-x-auto rounded-md p-3 pr-10 font-mono text-xs" style={{ background: 'var(--gray-a3)' }}><code>{shown}</code></pre>
-      <Tooltip content="Copy">
-        <IconButton size="1" variant="ghost" color="gray" aria-label="Copy snippet" className="!absolute right-2 top-2" onClick={async () => { await navigator.clipboard.writeText(copy); toast('Snippet copied') }}>
-          <Copy size={14} />
-        </IconButton>
-      </Tooltip>
+      {/* Positioned by a wrapper: Radix buttons set their own position, which overrides a class on the button. */}
+      <div className="absolute right-2 top-2">
+        <Tooltip content="Copy">
+          <IconButton size="1" variant="ghost" color="gray" aria-label="Copy snippet" className="!m-0" onClick={async () => { await navigator.clipboard.writeText(copy); toast('Snippet copied') }}>
+            <Copy size={14} />
+          </IconButton>
+        </Tooltip>
+      </div>
     </div>
   )
 }
