@@ -143,6 +143,7 @@ pub async fn ensure_owner(platform: &PgPool, opts: &PgConnectOptions, enc_key: &
 /// Removes the owner role after its database is gone. Failure is logged, not fatal: a leftover
 /// role without a database can do nothing.
 pub async fn drop_owner(platform: &PgPool, slug: &str) {
+    crate::direct::drop_role(platform, slug).await;
     let role = role_name(slug);
     if let Err(e) = sqlx::query(sqlx::AssertSqlSafe(format!("drop role if exists \"{role}\""))).execute(platform).await {
         eprintln!("could not drop role {role}: {e}");
