@@ -19,9 +19,9 @@ const C = { ink: '#0d0d0f', panel: '#18181b', red: '#e5484d', redHi: '#ff6369', 
 const PALETTE = [['Ink', C.ink], ['Panel', C.panel], ['Kodu Red', C.red], ['Ember', C.redHi], ['Coral', C.coral],
   ['Amber', C.amber], ['Green', C.green], ['Indigo', C.blue], ['Paper', C.white]]
 const NAME = 'KoduDB'
-const LINES = ['Your data.', 'Your backend.']
-const PITCH = 'An open backend platform on Postgres: identity, a generated REST API, files, live events and ' +
-  'migrations, running on infrastructure you control.'
+const LINES = ['Open backend.', 'Live devices.']
+const PITCH = 'Postgres, identity, a generated REST API and S3 files for your apps, with real-time data to and from ' +
+  'ESP32, Raspberry Pi and industrial gateways, on infrastructure you control.'
 const FEATURES = [
   ['Build', 'Model data in the explorer or with SQL. The REST API follows your schema.', C.red, '04-query-console'],
   ['Secure', 'Email, two-factor and sign-in providers, with row security on every request.', C.amber, '32-sign-in-providers'],
@@ -75,17 +75,55 @@ const page = (w, h, body) => `<!doctype html><html><head><style>${css(w / 1920)}
   <div class="bg"></div><div class="grid"></div>${body}</body></html>`
 const ratio = 900 / 1440 // screenshot aspect
 
+// A device card for the hero: chip icon, name, platform line and a live value.
+const chip = (s, color) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.6">
+  <rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" fill="${color}22"/>
+  <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>`
+function device(x, y, wd, u, { name, kind, value, label, color }) {
+  return `<div class="card" style="left:${x}px;top:${y}px;width:${wd}px;padding:${18 * u}px ${20 * u}px;background:#141417f2;
+      box-shadow:0 ${18 * u}px ${50 * u}px #0009;display:flex;gap:${14 * u}px;align-items:center">
+    <div style="width:${52 * u}px;height:${52 * u}px;border-radius:${12 * u}px;background:${color}1f;display:grid;place-items:center;flex:none">${chip(30 * u, color)}</div>
+    <div style="min-width:0;flex:1">
+      <div style="font-size:${19 * u}px;font-weight:600;white-space:nowrap">${name}</div>
+      <div class="muted" style="font-size:${14 * u}px;white-space:nowrap">${kind}</div>
+    </div>
+    <div style="text-align:right;flex:none">
+      <div style="font-size:${22 * u}px;font-weight:700;color:${color}">${value}</div>
+      <div class="muted" style="font-size:${12 * u}px;display:flex;gap:${6 * u}px;align-items:center;justify-content:flex-end">
+        <span style="width:${8 * u}px;height:${8 * u}px;border-radius:50%;background:${C.green};box-shadow:0 0 ${8 * u}px ${C.green}"></span>${label}</div>
+    </div></div>`
+}
+const event = (x, y, u, text, color) => `<div style="position:absolute;left:${x}px;top:${y}px;font:600 ${14 * u}px Consolas,monospace;
+  color:${color};background:#0d0d0fe6;border:1px solid ${color}66;border-radius:${8 * u}px;padding:${6 * u}px ${10 * u}px;white-space:nowrap">${text}</div>`
+
 function wide(w, h) {
-  const u = h / 1080, ww = w * 0.56, wh = ww * ratio + 34 * u
+  const u = h / 1080, ww = w * 0.37, wh = ww * ratio + 34 * u
+  const wx = w * 0.385, wy = (h - wh) / 2
+  const dx = w * 0.785, dw = w * 0.19, dh = 96 * u
+  const ys = [h * 0.19, h * 0.5 - dh / 2, h * 0.81 - dh]
+  const devices = [
+    { name: 'sensor-17', kind: 'ESP32 · temperature', value: '21.5°C', label: 'live', color: C.coral },
+    { name: 'line-3-pi', kind: 'Raspberry Pi · vibration', value: '0.42 g', label: 'live', color: C.amber },
+    { name: 'plant-gw-01', kind: 'IIoT gateway · Modbus', value: '1,284/min', label: 'streaming', color: C.blue },
+  ]
+  // curved links from each device card to the console window
+  const links = ys.map((y, i) => {
+    const sx = dx, sy = y + dh / 2, ex = wx + ww - 8 * u, ey = wy + wh * (0.3 + i * 0.22)
+    return `<path d="M${sx} ${sy} C ${sx - 60 * u} ${sy}, ${ex + 60 * u} ${ey}, ${ex} ${ey}" stroke="${devices[i].color}" stroke-width="${2.2 * u}"
+      fill="none" stroke-dasharray="${7 * u} ${7 * u}" opacity=".85"/><circle cx="${ex}" cy="${ey}" r="${5 * u}" fill="${devices[i].color}"/>`
+  }).join('')
   return page(w, h, `
-    ${win('18-dark-overview', { x: w * 0.5, y: h * 0.07, w: ww * 0.94, h: wh * 0.94, u })}
-    ${win('01-overview', { x: w * 0.44, y: h * 0.34, w: ww, h: wh, u })}
-    <div style="position:absolute;left:${w * 0.055}px;top:${h * 0.09}px;width:${w * 0.37}px">
-      ${mark(64 * u, 'open backend platform')}
-      <div style="height:${70 * u}px"></div>${headline(96 * u)}
-      <p class="muted" style="font-size:${27 * u}px;line-height:1.45;margin-top:${28 * u}px">${PITCH}</p>
-      <div style="display:flex;gap:${12 * u}px;margin-top:${44 * u}px;font-size:${19 * u}px">
-        ${pill('Preview', C.amber)}${pill('Self-hosted', C.red)}${pill('Apache-2.0', C.blue)}${pill('No telemetry', C.green)}</div>
+    ${win('01-overview', { x: wx, y: wy, w: ww, h: wh, u })}
+    <svg style="position:absolute;left:0;top:0" width="${w}" height="${h}">${links}</svg>
+    ${devices.map((d, i) => device(dx, ys[i], dw, u, d)).join('')}
+    ${event(wx + ww * 0.38, wy - 50 * u, u, 'INSERT readings · sensor-17 · 21.5', C.coral)}
+    ${event(wx + ww * 0.06, wy + wh + 18 * u, u, 'UPDATE commands · relay-3 · on', C.green)}
+    <div style="position:absolute;left:${w * 0.05}px;top:${h * 0.5}px;transform:translateY(-50%);width:${w * 0.31}px">
+      ${mark(60 * u)}
+      <div style="height:${56 * u}px"></div><div style="white-space:nowrap">${headline(80 * u)}</div>
+      <p class="muted" style="font-size:${23 * u}px;line-height:1.45;margin-top:${26 * u}px">${PITCH}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:${12 * u}px;margin-top:${36 * u}px;font-size:${17 * u}px">
+        ${pill('Self-hosted', C.red)}${pill('Realtime', C.coral)}${pill('IoT · IIoT · Embedded', C.amber)}${pill('Apache-2.0', C.blue)}</div>
     </div>`)
 }
 
@@ -95,7 +133,7 @@ function billboard(w = 3840, h = 1280) {
     ${win('01-overview', { x: w * 0.5, y: h * 0.12, w: ww, h: ww * ratio + 34 * u * 2, u: u * 2 })}
     <div style="position:absolute;left:${w * 0.05}px;top:${h * 0.13}px">${mark(130 * u)}
       <div style="height:${90 * u}px"></div>${headline(200 * u)}
-      <p class="muted" style="font-size:${52 * u}px;font-weight:600;margin-top:${50 * u}px">Postgres · Identity · REST · Files · Live events</p></div>`)
+      <p class="muted" style="font-size:${52 * u}px;font-weight:600;margin-top:${50 * u}px">Open backend · Real-time devices · IoT · IIoT</p></div>`)
 }
 
 function square(s = 1080) {
@@ -103,7 +141,7 @@ function square(s = 1080) {
   return page(s, s, `
     <div style="position:absolute;left:${70 * u}px;top:${70 * u}px">${mark(56 * u)}
       <div style="height:${60 * u}px"></div>${headline(88 * u)}
-      <p class="muted" style="font-size:${28 * u}px;margin-top:${26 * u}px">Self-hosted backend platform on Postgres</p></div>
+      <p class="muted" style="font-size:${28 * u}px;margin-top:${26 * u}px">Open backend with real-time device data</p></div>
     ${win('07-identity', { x: 70 * u, y: 560 * u, w: ww, h: ww * ratio + 34 * u, u })}`)
 }
 
