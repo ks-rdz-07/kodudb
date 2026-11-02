@@ -10,7 +10,7 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 tiberius = { version = "0.12", default-features = false, features = ["tds73", "rustls"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 mongodb = "3"
-jsonwebtoken = "9"
+jsonwebtoken = "11"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tower-http = { version = "0.6", features = ["cors"] }
