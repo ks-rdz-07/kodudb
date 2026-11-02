@@ -18,10 +18,12 @@ The format is based on Keep a Changelog, and this project uses semantic versioni
 - SDKs page: API URL and public key with copy buttons, root certificate download for devices, and coloured samples
   for auth, device data and statistics in seven languages.
 - Favicon with the KoduDB mark.
+- Light, dark or system theme switch in the top bar; the choice is remembered.
 
 ### Fixed
 - Files: "Copy public link" now copies the full project URL with an encoded file name.
 - Command palette: section labels on the right are no longer cut off.
+- API reference: readable in dark mode (it rendered light-mode text on the dark background).
 
 ## [0.3.2]
 

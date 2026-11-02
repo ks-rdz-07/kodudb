@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar, Button, DropdownMenu, Dialog, Flex, IconButton, Kbd, Text, TextField } from '@radix-ui/themes'
-import { ChevronDown, LogOut, Menu, Search, Table2, X } from 'lucide-react'
+import { ChevronDown, LogOut, Menu, Monitor, Moon, Search, Sun, Table2, X } from 'lucide-react'
 import { kodu, TableInfo } from '@/lib/api'
+import { ThemePref, setThemePref, themePref, useDark } from '@/lib/theme'
 import { Logo } from '@/components/logo'
 import { Brand, NavLinks, signOut } from './nav'
 import ProjectSwitcher from './project-switcher'
@@ -81,6 +82,28 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
   )
 }
 
+/** Light, dark or follow the OS. */
+function ThemeSwitch() {
+  const dark = useDark()
+  const [pref, setPref] = useState<ThemePref>('system')
+  useEffect(() => setPref(themePref()), [])
+  const choose = (p: string) => { setThemePref(p as ThemePref); setPref(p as ThemePref) }
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger>
+        <IconButton variant="ghost" color="gray" aria-label="Theme" className="!m-0">{dark ? <Moon size={16} /> : <Sun size={16} />}</IconButton>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" variant="soft">
+        <DropdownMenu.RadioGroup value={pref} onValueChange={choose}>
+          <DropdownMenu.RadioItem value="light"><Sun size={14} />Light</DropdownMenu.RadioItem>
+          <DropdownMenu.RadioItem value="dark"><Moon size={14} />Dark</DropdownMenu.RadioItem>
+          <DropdownMenu.RadioItem value="system"><Monitor size={14} />System</DropdownMenu.RadioItem>
+        </DropdownMenu.RadioGroup>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  )
+}
+
 /** The signed-in console user: avatar and name, with sign-out. */
 function Profile({ user }: { user: string }) {
   return (
@@ -132,7 +155,7 @@ export default function TopBar({ user }: { user: string }) {
           <Kbd size="1">Ctrl K</Kbd>
         </Button>
       </div>
-      <div className="flex justify-end lg:w-[120px]"><Profile user={user} /></div>
+      <div className="flex items-center justify-end gap-3 lg:w-[160px]"><ThemeSwitch /><Profile user={user} /></div>
 
       <CommandPalette open={palette} onOpenChange={setPalette} />
 
