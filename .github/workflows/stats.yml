@@ -1,0 +1,48 @@
+# Redraws the README count badges daily (clones, views, stars, forks, Docker pulls).
+# Clone and view counts need the TRAFFIC_TOKEN secret (fine-grained token, this repository,
+# Administration: read-only); without it those badges show n/a and the rest still update.
+# Badges and history.json live on the unprotected `stats` branch, so nothing is pushed to main.
+name: Stats
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stats
+  cancel-in-progress: false
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push to the `stats` branch only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Self-test
+        run: python3 .github/scripts/repo_stats.py --self-test
+      - name: Previous history
+        run: |
+          git fetch -q --depth=1 origin stats 2>/dev/null && git show FETCH_HEAD:history.json > /tmp/history.json || echo '{}' > /tmp/history.json
+      - name: Draw badges
+        run: python3 .github/scripts/repo_stats.py "$GITHUB_REPOSITORY" /tmp/stats /tmp/history.json kns777/kodudb-api kns777/kodudb-console
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRAFFIC_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+      - name: Publish to the stats branch
+        run: |
+          cd /tmp/stats
+          git init -q -b stats
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -q -m "Update stats"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" stats
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

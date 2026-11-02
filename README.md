@@ -13,6 +13,13 @@
   <img alt="Postgres 15+" src="https://img.shields.io/badge/Postgres-15%2B-336791">
   <img alt="API: Rust" src="https://img.shields.io/badge/API-Rust%20(axum)-b7410e">
   <img alt="Console: Next.js" src="https://img.shields.io/badge/console-Next.js-000000">
+  <br>
+  <a href="../../graphs/traffic"><img alt="Clones" src="../../raw/stats/clones.svg"></a>
+  <a href="../../graphs/traffic"><img alt="Unique cloners" src="../../raw/stats/cloners.svg"></a>
+  <a href="../../graphs/traffic"><img alt="Views" src="../../raw/stats/views.svg"></a>
+  <a href="../../stargazers"><img alt="Stars" src="../../raw/stats/stars.svg"></a>
+  <a href="../../forks"><img alt="Forks" src="../../raw/stats/forks.svg"></a>
+  <img alt="Docker pulls" src="../../raw/stats/docker-pulls.svg">
 </p>
 
 # KoduDB
