@@ -15,7 +15,9 @@ permissions:
 
 concurrency:
   group: security-${{ github.ref }}
-  cancel-in-progress: true
+  # Supersede older runs on pull requests only. On main every run must finish: a cancelled CodeQL run uploads
+  # an unsuccessful analysis, which GitHub reports as a code scanning configuration error.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   cargo-audit:

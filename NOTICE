@@ -12,4 +12,5 @@ Third-party code and assets included in this repository:
 
 Dependencies installed by Cargo (api/) and npm (console/) are distributed under their own licenses,
 listed in api/Cargo.lock and console/package-lock.json. Container images build on the official
-rust, debian, node and postgres images, which carry their own licenses.
+rust, debian, node and postgres images, which carry their own licenses. Docker Compose also runs the
+RustFS image (Apache-2.0) for file storage.

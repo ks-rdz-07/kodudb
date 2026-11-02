@@ -25,7 +25,13 @@ services:
       DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       KODUDB_PUBLIC_URL: ${KODUDB_PUBLIC_URL:-http://localhost:8787}
+      # Files go to the bundled S3 storage. Earlier local files in /data/storage are copied over once and kept.
       STORAGE_ROOT: /data/storage
+      S3_ENDPOINT: http://storage:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run node scripts/gen-env.mjs first}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?run node scripts/gen-env.mjs first}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
+      S3_CONSOLE_URL: ${S3_CONSOLE_URL:-http://localhost:9001/rustfs/console/}
     volumes:
       - kodudb-storage:/data/storage
     ports:
@@ -33,6 +39,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      storage:
+        condition: service_started
+
+  storage:
+    # S3-compatible object storage (RustFS, Apache-2.0). Port 9000: S3 API. Port 9001: web console.
+    image: docker.io/rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?run node scripts/gen-env.mjs first}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?run node scripts/gen-env.mjs first}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes:
+      - kodudb-objects:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
 
   console:
     build: ./console
@@ -48,3 +69,4 @@ services:
 volumes:
   kodudb-db:
   kodudb-storage:
+  kodudb-objects:
