@@ -117,7 +117,7 @@ impl Table {
 async fn run_sql_pg(url: &str, sql: &str) -> R<Table> {
     // A one-connection pool (not &mut PgConnection) keeps the handler future Send with raw_sql.
     let pool = sqlx::postgres::PgPoolOptions::new().max_connections(1).acquire_timeout(Duration::from_secs(10)).connect(url).await.map_err(bad)?;
-    let rows = sqlx::raw_sql(sql).fetch_all(&pool).await.map_err(bad);
+    let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(sql)).fetch_all(&pool).await.map_err(bad);
     pool.close().await;
     let rows = rows?;
     Ok(Table {
@@ -133,7 +133,7 @@ async fn run_sql_pg(url: &str, sql: &str) -> R<Table> {
 async fn run_sql_mysql(url: &str, sql: &str) -> R<Table> {
     let pool = sqlx::mysql::MySqlPoolOptions::new().max_connections(1).acquire_timeout(Duration::from_secs(10)).connect(url).await.map_err(bad)?;
     // Text protocol (raw_sql) returns every value as text, so any column type renders.
-    let rows = sqlx::raw_sql(sql).fetch_all(&pool).await.map_err(bad);
+    let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(sql)).fetch_all(&pool).await.map_err(bad);
     pool.close().await;
     let rows = rows?;
     Ok(Table {

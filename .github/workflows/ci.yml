@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: npm
           cache-dependency-path: console/package-lock.json
       - working-directory: console
@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
       - name: Start the stack
         run: |
           node scripts/gen-env.mjs > /dev/null   # never print the generated sign-in in the log

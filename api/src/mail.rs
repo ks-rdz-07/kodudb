@@ -176,11 +176,11 @@ async fn consume(st: &AppState, token: &str, kind: &str) -> R<(Value, Option<Str
     .fetch_optional(&st.pool)
     .await?;
     let (user_id, redirect) = row.ok_or_else(|| err(StatusCode::BAD_REQUEST, "link is invalid, used or expired"))?;
-    let user: Value = sqlx::query_scalar(&format!(
+    let user: Value = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "update auth.users u set email_confirmed_at = coalesce(email_confirmed_at, now()), last_sign_in_at = now()
          where id = $1::uuid and not banned returning {}",
         crate::auth::USER_COLS
-    ))
+    )))
     .bind(&user_id)
     .fetch_optional(&st.pool)
     .await?

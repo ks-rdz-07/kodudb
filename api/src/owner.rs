@@ -112,7 +112,7 @@ pub async fn ensure_owner(platform: &PgPool, opts: &PgConnectOptions, enc_key: &
         let exists: bool = sqlx::query_scalar("select exists(select 1 from pg_roles where rolname = $1)").bind(&role).fetch_one(platform).await?;
         // The role name comes from a validated slug and the password is hex, so both are safe to inline in DDL.
         let verb = if exists { "alter" } else { "create" };
-        sqlx::query(&format!("{verb} role \"{role}\" login password '{password}' nosuperuser nocreatedb nocreaterole noinherit"))
+        sqlx::query(sqlx::AssertSqlSafe(format!("{verb} role \"{role}\" login password '{password}' nosuperuser nocreatedb nocreaterole noinherit")))
             .execute(platform)
             .await?;
         sqlx::query("update platform.projects set owner_role = $2, owner_password_enc = pgp_sym_encrypt($3, $4) where slug = $1")
@@ -123,18 +123,18 @@ pub async fn ensure_owner(platform: &PgPool, opts: &PgConnectOptions, enc_key: &
             .execute(platform)
             .await?;
     }
-    sqlx::raw_sql(&format!(
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "grant anon, authenticated, service_role to \"{role}\";
          alter database \"{db}\" owner to \"{role}\";
          revoke all on database \"{db}\" from public;
          grant connect, temporary on database \"{db}\" to \"{role}\";"
-    ))
+    )))
     .execute(platform)
     .await?;
 
     let pool = PgPoolOptions::new().max_connections(1).connect_with(opts.clone().database(db)).await?;
     let sql = OWNER_SQL.replace("{role}", &role).replace("{schemas}", BOOT_SCHEMAS);
-    let applied = sqlx::raw_sql(&sql).execute(&pool).await;
+    let applied = sqlx::raw_sql(sqlx::AssertSqlSafe(sql.as_str())).execute(&pool).await;
     pool.close().await;
     applied?;
     Ok(())
@@ -144,7 +144,7 @@ pub async fn ensure_owner(platform: &PgPool, opts: &PgConnectOptions, enc_key: &
 /// role without a database can do nothing.
 pub async fn drop_owner(platform: &PgPool, slug: &str) {
     let role = role_name(slug);
-    if let Err(e) = sqlx::query(&format!("drop role if exists \"{role}\"")).execute(platform).await {
+    if let Err(e) = sqlx::query(sqlx::AssertSqlSafe(format!("drop role if exists \"{role}\""))).execute(platform).await {
         eprintln!("could not drop role {role}: {e}");
     }
 }

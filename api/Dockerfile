@@ -1,4 +1,5 @@
-FROM docker.io/library/rust:1-slim AS build
+# Build on the same Debian release as the runtime image: aws-lc (C) must link against the same glibc.
+FROM docker.io/library/rust:1-slim-bookworm AS build
 WORKDIR /app
 COPY Cargo.toml Cargo.lock* ./
 # Cache dependencies separately from source.

@@ -97,10 +97,10 @@ pub async fn signup(State(st): State<AppState>, headers: HeaderMap, ClientIp(ip)
     let (email, password) = (b.email.unwrap_or_default(), b.password.unwrap_or_default());
     validate(&email, &password)?;
     let confirm = crate::mail::settings(&st).await?.require_email_confirmation;
-    let user: Value = sqlx::query_scalar(&format!(
+    let user: Value = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "insert into auth.users as u (email, encrypted_password, user_metadata, email_confirmed_at)
          values (lower($1), crypt($2, gen_salt('bf', 10)), $3, case when $4 then null else now() end) returning {USER_COLS}"
-    ))
+    )))
     .bind(&email)
     .bind(&password)
     .bind(metadata(b.data)?)
@@ -139,10 +139,10 @@ pub async fn token(
                 let body = Json(json!({ "error": format!("too many failed sign-ins; try again in {secs} s") }));
                 return Ok((StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, secs.to_string())], body).into_response());
             }
-            let user: Option<(Value, bool)> = sqlx::query_as(&format!(
+            let user: Option<(Value, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
                 "select {USER_COLS}, u.banned from auth.users u
                  where u.email = lower($1) and u.encrypted_password = crypt($2, u.encrypted_password)"
-            ))
+            )))
             .bind(&email)
             .bind(b.password.unwrap_or_default())
             .fetch_optional(&st.pool)
@@ -191,7 +191,7 @@ pub async fn token(
 }
 
 pub async fn active_user(st: &AppState, id: Option<&str>) -> R<Value> {
-    let row: Option<(Value, bool)> = sqlx::query_as(&format!("select {USER_COLS}, u.banned from auth.users u where u.id = $1::uuid"))
+    let row: Option<(Value, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(format!("select {USER_COLS}, u.banned from auth.users u where u.id = $1::uuid")))
         .bind(id)
         .fetch_optional(&st.pool)
         .await?;
@@ -230,13 +230,13 @@ async fn apply_update(st: &AppState, id: &str, b: UserUpdate, allow_ban: bool) -
     }
     let meta = b.data.or(b.user_metadata).map(|m| metadata(Some(m))).transpose()?;
     let ban = if allow_ban { b.ban } else { None };
-    let user: Option<Value> = sqlx::query_scalar(&format!(
+    let user: Option<Value> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "update auth.users u set
            encrypted_password = coalesce(crypt($2, gen_salt('bf', 10)), encrypted_password),
            user_metadata = coalesce($3, user_metadata),
            banned = coalesce($4, banned)
          where id = $1::uuid returning {USER_COLS}"
-    ))
+    )))
     .bind(id)
     .bind(b.password)
     .bind(meta)
@@ -271,11 +271,11 @@ pub async fn admin_list(State(st): State<AppState>, headers: HeaderMap, Query(q)
     let per = q.per_page.unwrap_or(50).clamp(1, 1000);
     let off = (q.page.unwrap_or(1).max(1) - 1) * per;
     let search = format!("%{}%", q.search.unwrap_or_default().replace(['%', '_'], ""));
-    let (users, total): (Value, i64) = sqlx::query_as(&format!(
+    let (users, total): (Value, i64) = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "select coalesce((select jsonb_agg(x) from (select {USER_COLS} x from auth.users u where u.email like $3
             order by u.created_at desc limit $1 offset $2) s), '[]'),
          (select count(*) from auth.users where email like $3)"
-    ))
+    )))
     .bind(per)
     .bind(off)
     .bind(search)
@@ -288,10 +288,10 @@ pub async fn admin_create(State(st): State<AppState>, headers: HeaderMap, Client
     require_service(&st.claims(&headers, None)?)?;
     let (email, password) = (b.email.clone().unwrap_or_default(), b.password.clone().unwrap_or_default());
     validate(&email, &password)?;
-    let user: Value = sqlx::query_scalar(&format!(
+    let user: Value = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "insert into auth.users as u (email, encrypted_password, user_metadata, email_confirmed_at)
          values (lower($1), crypt($2, gen_salt('bf', 10)), $3, now()) returning {USER_COLS}"
-    ))
+    )))
     .bind(&email)
     .bind(&password)
     .bind(metadata(b.user_metadata.or(b.data))?)

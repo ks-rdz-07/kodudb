@@ -177,7 +177,7 @@ pub async fn scoped(pool: &PgPool, c: &Value) -> R<Transaction<'static, Postgres
         .execute(&mut *tx)
         .await?;
     // role() is one of ROLES (checked in claims), so it is safe to inline.
-    sqlx::query(&format!("set local role \"{}\"", role(c))).execute(&mut *tx).await?;
+    sqlx::query(sqlx::AssertSqlSafe(format!("set local role \"{}\"", role(c)))).execute(&mut *tx).await?;
     Ok(tx)
 }
 

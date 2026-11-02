@@ -4,7 +4,7 @@
 
 <p align="center">
   <img alt="Status: preview" src="https://img.shields.io/badge/status-preview-ffc53d?style=for-the-badge">
-  <a href="../../releases"><img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-e5484d?style=for-the-badge"></a>
+  <a href="../../releases"><img alt="Version 0.1.1" src="https://img.shields.io/badge/version-0.1.1-e5484d?style=for-the-badge"></a>
   <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-30a46c?style=for-the-badge">
   <img alt="Docker | Podman | Windows Server" src="https://img.shields.io/badge/runs%20on-Docker%20%7C%20Podman%20%7C%20Windows-3e63dd?style=for-the-badge">
   <br>
@@ -142,31 +142,135 @@ The platform suite starts a mock GitHub container on the stack network, so no re
 
 ## Screenshots
 
-Captured with `scripts/screenshots.cjs` against the seeded Demo Store.
+Captured with `scripts/screenshots.cjs` against the seeded Demo Store (demo data only). Click a group to expand it.
 
-| | |
-|---|---|
-| ![Projects & keys](docs/samples/02-projects-and-keys.png) | ![Data explorer](docs/samples/03-data-explorer.png) |
-| ![Query console](docs/samples/04-query-console.png) | ![SQL IntelliSense](docs/samples/05-sql-intellisense.png) |
-| ![Row security](docs/samples/06-schema-row-security.png) | ![Identity](docs/samples/07-identity.png) |
-| ![Files](docs/samples/08-files.png) | ![Live events](docs/samples/09-live-events.png) |
-| ![Metrics](docs/samples/10-metrics.png) | ![Request logs](docs/samples/11-request-logs.png) |
-| ![Change log](docs/samples/12-change-log.png) | ![Migrations](docs/samples/13-migrations.png) |
-| ![Data sources](docs/samples/14-data-sources.png) | ![API reference](docs/samples/15-api-reference.png) |
-| ![Command palette](docs/samples/16-command-palette.png) | ![Rotate keys](docs/samples/17-rotate-keys-dialog.png) |
-| ![Dark overview](docs/samples/18-dark-overview.png) | ![Dark metrics](docs/samples/19-dark-metrics.png) |
-| ![Sign in](docs/samples/00-sign-in.png) | ![Phone](docs/samples/20-phone-overview.png) |
-| ![Awaiting confirmation](docs/samples/21-identity-awaiting-confirmation.png) | ![Email settings](docs/samples/22-email-settings.png) |
-| ![Test email sent](docs/samples/23-email-test-sent.png) | ![Email templates](docs/samples/24-email-templates.png) |
-| ![Sent emails](docs/samples/25-sent-emails.png) | ![Recover in API reference](docs/samples/26-api-reference-recover.png) |
-| ![Sign-in light](docs/samples/27-sign-in-light.png) | ![Sign-in dark](docs/samples/27-sign-in-dark.png) |
-| ![Console background light](docs/samples/28-console-background-light.png) | ![Console background dark](docs/samples/28-console-background-dark.png) |
-| ![Two-factor users](docs/samples/29-identity-two-factor.png) | ![Reset two-factor](docs/samples/30-reset-two-factor-menu.png) |
-| ![Two-factor API](docs/samples/31-api-reference-two-factor.png) | ![Sign-in providers](docs/samples/32-sign-in-providers.png) |
-| ![OpenID Connect provider settings](docs/samples/35-provider-oidc-settings.png) | ![Add a provider from presets](docs/samples/36-add-provider-presets.png) |
-| ![Search providers](docs/samples/38-add-provider-search.png) | ![Sign-in providers, dark](docs/samples/37-sign-in-providers-dark.png) |
-| ![Users linked to a provider](docs/samples/33-identity-linked-github.png) | ![Sign-in providers API](docs/samples/34-api-reference-providers.png) |
-| ![Profile in the top bar](docs/samples/39-profile-top-bar.png) | ![Profile menu](docs/samples/39-profile-menu.png) |
+<details open>
+<summary><b>Console</b> (11)</summary>
+<br>
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/01-overview.png" alt="Overview"><br><sub>Overview</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/18-dark-overview.png" alt="Overview, dark"><br><sub>Overview, dark</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/16-command-palette.png" alt="Command palette (Ctrl+K)"><br><sub>Command palette (Ctrl+K)</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/20-phone-overview.png" alt="On a phone"><br><sub>On a phone</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/27-sign-in-light.png" alt="Sign-in"><br><sub>Sign-in</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/27-sign-in-dark.png" alt="Sign-in, dark"><br><sub>Sign-in, dark</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/28-console-background-light.png" alt="Console background"><br><sub>Console background</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/28-console-background-dark.png" alt="Console background, dark"><br><sub>Console background, dark</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/39-profile-top-bar.png" alt="Profile in the top bar"><br><sub>Profile in the top bar</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/39-profile-menu.png" alt="Profile menu"><br><sub>Profile menu</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/00-sign-in.png" alt="Sign-in form"><br><sub>Sign-in form</sub></td>
+    <td></td>
+  </tr>
+</table>
+</details>
+
+<details>
+<summary><b>Projects and data</b> (8)</summary>
+<br>
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/02-projects-and-keys.png" alt="Projects & keys"><br><sub>Projects & keys</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/17-rotate-keys-dialog.png" alt="Rotate keys"><br><sub>Rotate keys</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/03-data-explorer.png" alt="Data explorer"><br><sub>Data explorer</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/06-schema-row-security.png" alt="Schema and row security"><br><sub>Schema and row security</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/04-query-console.png" alt="Query console"><br><sub>Query console</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/05-sql-intellisense.png" alt="SQL IntelliSense"><br><sub>SQL IntelliSense</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/13-migrations.png" alt="Migrations"><br><sub>Migrations</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/14-data-sources.png" alt="Data sources"><br><sub>Data sources</sub></td>
+  </tr>
+</table>
+</details>
+
+<details>
+<summary><b>Identity and email</b> (14)</summary>
+<br>
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/07-identity.png" alt="Users"><br><sub>Users</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/21-identity-awaiting-confirmation.png" alt="Awaiting email confirmation"><br><sub>Awaiting email confirmation</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/29-identity-two-factor.png" alt="Two-factor users"><br><sub>Two-factor users</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/30-reset-two-factor-menu.png" alt="Reset two-factor"><br><sub>Reset two-factor</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/32-sign-in-providers.png" alt="Sign-in providers"><br><sub>Sign-in providers</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/37-sign-in-providers-dark.png" alt="Sign-in providers, dark"><br><sub>Sign-in providers, dark</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/36-add-provider-presets.png" alt="Add a provider from presets"><br><sub>Add a provider from presets</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/38-add-provider-search.png" alt="Search providers"><br><sub>Search providers</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/35-provider-oidc-settings.png" alt="OpenID Connect provider settings"><br><sub>OpenID Connect provider settings</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/33-identity-linked-github.png" alt="Users linked to a provider"><br><sub>Users linked to a provider</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/22-email-settings.png" alt="Email settings"><br><sub>Email settings</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/23-email-test-sent.png" alt="Test email sent"><br><sub>Test email sent</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/24-email-templates.png" alt="Email templates"><br><sub>Email templates</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/25-sent-emails.png" alt="Sent emails"><br><sub>Sent emails</sub></td>
+  </tr>
+</table>
+</details>
+
+<details>
+<summary><b>Files, live events and monitoring</b> (6)</summary>
+<br>
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/08-files.png" alt="Files"><br><sub>Files</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/09-live-events.png" alt="Live events"><br><sub>Live events</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/10-metrics.png" alt="Metrics"><br><sub>Metrics</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/19-dark-metrics.png" alt="Metrics, dark"><br><sub>Metrics, dark</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/11-request-logs.png" alt="Request logs"><br><sub>Request logs</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/12-change-log.png" alt="Change log"><br><sub>Change log</sub></td>
+  </tr>
+</table>
+</details>
+
+<details>
+<summary><b>API reference</b> (4)</summary>
+<br>
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/15-api-reference.png" alt="Generated API reference"><br><sub>Generated API reference</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/26-api-reference-recover.png" alt="Password recovery endpoint"><br><sub>Password recovery endpoint</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/samples/31-api-reference-two-factor.png" alt="Two-factor endpoints"><br><sub>Two-factor endpoints</sub></td>
+    <td width="50%" align="center"><img src="docs/samples/34-api-reference-providers.png" alt="Sign-in provider endpoints"><br><sub>Sign-in provider endpoints</sub></td>
+  </tr>
+</table>
+</details>
 
 ## Known limits
 

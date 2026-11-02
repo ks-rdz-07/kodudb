@@ -9,7 +9,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha1::Sha1;
