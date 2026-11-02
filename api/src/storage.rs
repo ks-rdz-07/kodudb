@@ -1,5 +1,6 @@
-//! File storage: metadata in storage.objects (RLS-checked), bytes on disk under STORAGE_ROOT.
-use std::path::PathBuf;
+//! File storage: metadata in storage.objects (RLS-checked), bytes in the project's object store
+//! (a local directory or an S3 bucket, see objects.rs) under `<bucket>/<name>`.
+use object_store::{path::Path as ObjPath, ObjectStoreExt, PutPayload};
 
 use axum::{
     body::Bytes,
@@ -23,16 +24,22 @@ fn valid_bucket(b: &str) -> R<&str> {
     if ok { Ok(b) } else { Err(err(StatusCode::BAD_REQUEST, "invalid bucket name")) }
 }
 
-/// A temp name next to the target that no other upload uses (same directory, so the rename is atomic).
-fn temp_path(path: &std::path::Path) -> PathBuf {
+/// A staging key no other upload uses. `_tmp` can never be a bucket (bucket names start with a letter or digit).
+fn temp_key() -> ObjPath {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let name = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    path.with_file_name(format!(".{name}.{}.{n}.part", std::process::id()))
+    ObjPath::from(format!("_tmp/{}-{n}.part", std::process::id()))
 }
 
-/// Disk path for an object; rejects traversal and absolute/odd names.
-pub fn object_path(root: &std::path::Path, bucket: &str, name: &str) -> R<PathBuf> {
+fn store_err(e: object_store::Error) -> crate::ctx::ApiError {
+    match e {
+        object_store::Error::NotFound { .. } => err(StatusCode::NOT_FOUND, "object data missing"),
+        e => err(StatusCode::INTERNAL_SERVER_ERROR, format!("file storage: {e}")),
+    }
+}
+
+/// Object key for a file; rejects traversal and absolute/odd names.
+pub fn object_key(bucket: &str, name: &str) -> R<ObjPath> {
     valid_bucket(bucket)?;
     let bad = name.is_empty()
         || name.len() > 1024
@@ -42,7 +49,7 @@ pub fn object_path(root: &std::path::Path, bucket: &str, name: &str) -> R<PathBu
     if bad {
         return Err(err(StatusCode::BAD_REQUEST, "invalid object name"));
     }
-    Ok(root.join(bucket).join(name))
+    ObjPath::parse(format!("{bucket}/{name}")).map_err(|_| err(StatusCode::BAD_REQUEST, "invalid object name"))
 }
 
 pub async fn list_buckets(State(st): State<AppState>, headers: HeaderMap) -> R<Response> {
@@ -75,7 +82,6 @@ pub async fn create_bucket(State(st): State<AppState>, headers: HeaderMap, Json(
         .bind(b.public)
         .fetch_one(&st.pool)
         .await?;
-    tokio::fs::create_dir_all(st.storage_root.join(&b.id)).await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(row))
 }
 
@@ -97,13 +103,15 @@ pub async fn delete_bucket(State(st): State<AppState>, headers: HeaderMap, Path(
     if n == 0 {
         return Err(err(StatusCode::NOT_FOUND, "bucket not found"));
     }
-    let _ = tokio::fs::remove_dir_all(st.storage_root.join(&id)).await;
+    if let Err(e) = crate::objects::delete_prefix(&st.storage, Some(&ObjPath::from(id.as_str()))).await {
+        eprintln!("bucket {id} removed but its files were not all deleted: {}", e.1);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn upload(State(st): State<AppState>, method: Method, headers: HeaderMap, Path((bucket, name)): Path<(String, String)>, body: Bytes) -> R<Json<Value>> {
     let c = st.claims(&headers, None)?;
-    let path = object_path(&st.storage_root, &bucket, &name)?;
+    let key = object_key(&bucket, &name)?;
     let upsert = method == Method::PUT || headers.get("x-upsert").is_some_and(|v| v == "true");
     let mime = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
     let owner = (role(&c) == "authenticated").then(|| c["sub"].as_str().unwrap_or_default().to_string());
@@ -123,32 +131,30 @@ pub async fn upload(State(st): State<AppState>, method: Method, headers: HeaderM
     .fetch_optional(&mut *tx)
     .await?;
     let row = row.ok_or_else(|| err(StatusCode::CONFLICT, "object already exists (use x-upsert: true)"))?;
-    // Bytes go to a private temp file first; the old file is only replaced after the metadata commits,
+    // Bytes go to a private staging key first; the old object is only replaced after the metadata commits,
     // so a failed write or commit leaves the previous version intact and concurrent uploads never interleave.
-    let io = |e: std::io::Error| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
-    tokio::fs::create_dir_all(path.parent().unwrap()).await.map_err(io)?;
-    let tmp = temp_path(&path);
-    if let Err(e) = tokio::fs::write(&tmp, &body).await {
-        let _ = tokio::fs::remove_file(&tmp).await;
-        return Err(io(e));
+    let tmp = temp_key();
+    if let Err(e) = st.storage.put(&tmp, PutPayload::from(body)).await {
+        let _ = st.storage.delete(&tmp).await;
+        return Err(store_err(e));
     }
     if let Err(e) = tx.commit().await {
-        let _ = tokio::fs::remove_file(&tmp).await;
+        let _ = st.storage.delete(&tmp).await;
         return Err(e.into());
     }
-    tokio::fs::rename(&tmp, &path).await.map_err(io)?;
+    st.storage.rename(&tmp, &key).await.map_err(store_err)?;
     Ok(Json(row))
 }
 
-async fn send_file(path: PathBuf, mime: Option<String>) -> R<Response> {
-    let bytes = tokio::fs::read(&path).await.map_err(|_| err(StatusCode::NOT_FOUND, "object data missing"))?;
+async fn send_file(st: &AppState, key: ObjPath, mime: Option<String>) -> R<Response> {
+    let bytes = st.storage.get(&key).await.map_err(store_err)?.bytes().await.map_err(store_err)?;
     let mime = mime.unwrap_or_else(|| "application/octet-stream".into());
     Ok(([(header::CONTENT_TYPE, mime)], bytes).into_response())
 }
 
 pub async fn download(State(st): State<AppState>, headers: HeaderMap, Path((bucket, name)): Path<(String, String)>) -> R<Response> {
     let c = st.claims(&headers, None)?;
-    let path = object_path(&st.storage_root, &bucket, &name)?;
+    let key = object_key(&bucket, &name)?;
     let mut tx = scoped(&st.pool, &c).await?;
     let mime: Option<Option<String>> = sqlx::query_scalar("select mimetype from storage.objects where bucket_id = $1 and name = $2")
         .bind(&bucket)
@@ -156,11 +162,11 @@ pub async fn download(State(st): State<AppState>, headers: HeaderMap, Path((buck
         .fetch_optional(&mut *tx)
         .await?;
     tx.commit().await?;
-    send_file(path, mime.ok_or_else(|| err(StatusCode::NOT_FOUND, "object not found"))?).await
+    send_file(&st, key, mime.ok_or_else(|| err(StatusCode::NOT_FOUND, "object not found"))?).await
 }
 
 pub async fn download_public(State(st): State<AppState>, Path((bucket, name)): Path<(String, String)>) -> R<Response> {
-    let path = object_path(&st.storage_root, &bucket, &name)?;
+    let key = object_key(&bucket, &name)?;
     let mime: Option<Option<String>> = sqlx::query_scalar(
         "select o.mimetype from storage.objects o join storage.buckets b on b.id = o.bucket_id
          where b.public and o.bucket_id = $1 and o.name = $2",
@@ -169,12 +175,12 @@ pub async fn download_public(State(st): State<AppState>, Path((bucket, name)): P
     .bind(&name)
     .fetch_optional(&st.pool)
     .await?;
-    send_file(path, mime.ok_or_else(|| err(StatusCode::NOT_FOUND, "object not found"))?).await
+    send_file(&st, key, mime.ok_or_else(|| err(StatusCode::NOT_FOUND, "object not found"))?).await
 }
 
 pub async fn remove(State(st): State<AppState>, headers: HeaderMap, Path((bucket, name)): Path<(String, String)>) -> R<StatusCode> {
     let c = st.claims(&headers, None)?;
-    let path = object_path(&st.storage_root, &bucket, &name)?;
+    let key = object_key(&bucket, &name)?;
     let mut tx = scoped(&st.pool, &c).await?;
     let n = sqlx::query("delete from storage.objects where bucket_id = $1 and name = $2")
         .bind(&bucket)
@@ -186,7 +192,7 @@ pub async fn remove(State(st): State<AppState>, headers: HeaderMap, Path((bucket
         return Err(err(StatusCode::NOT_FOUND, "object not found"));
     }
     tx.commit().await?;
-    let _ = tokio::fs::remove_file(path).await;
+    let _ = st.storage.delete(&key).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -220,18 +226,17 @@ pub async fn list(State(st): State<AppState>, headers: HeaderMap, Path(bucket): 
 
 #[cfg(test)]
 mod tests {
-    use super::object_path;
-    use std::path::Path;
+    use super::object_key;
 
     #[test]
     fn blocks_path_traversal() {
-        let root = Path::new("/data");
-        assert!(object_path(root, "avatars", "a/b.png").is_ok());
-        assert!(object_path(root, "avatars", "../etc/passwd").is_err());
-        assert!(object_path(root, "avatars", "a/../../x").is_err());
-        assert!(object_path(root, "avatars", "/abs").is_err());
-        assert!(object_path(root, "avatars", "a\\b").is_err());
-        assert!(object_path(root, "../x", "a").is_err());
-        assert!(object_path(root, "public", "a").is_err());
+        assert_eq!(object_key("avatars", "a/b.png").unwrap().as_ref(), "avatars/a/b.png");
+        assert!(object_key("avatars", "../etc/passwd").is_err());
+        assert!(object_key("avatars", "a/../../x").is_err());
+        assert!(object_key("avatars", "/abs").is_err());
+        assert!(object_key("avatars", "a\\b").is_err());
+        assert!(object_key("../x", "a").is_err());
+        assert!(object_key("public", "a").is_err());
+        assert!(object_key("_tmp", "a").is_err(), "the staging prefix is never a bucket");
     }
 }

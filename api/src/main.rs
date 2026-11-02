@@ -7,6 +7,7 @@ mod mail;
 mod meta;
 mod mfa;
 mod oauth;
+mod objects;
 mod owner;
 mod platform;
 mod realtime;
@@ -16,6 +17,7 @@ mod secrets;
 mod storage;
 
 use std::{path::PathBuf, str::FromStr, sync::Arc, time::Duration};
+
 
 use axum::{
     extract::DefaultBodyLimit,
@@ -116,11 +118,29 @@ async fn main() {
     // Stored secrets are encrypted with ENCRYPTION_KEY so JWT_SECRET can rotate on its own.
     let secrets::Secrets { jwt_secret: secret, encryption_key, console_user, console_password } = secrets::resolve(&pool).await;
     let (realtime, _listener) = realtime::spawn_listener(&pool).await.expect("realtime listener");
+    // Files: S3-compatible storage when S3_ENDPOINT is set, otherwise the local STORAGE_ROOT directory.
+    let objects = Arc::new(objects::Backend::from_env());
+    let local_root = PathBuf::from(std::env::var("STORAGE_ROOT").unwrap_or_else(|_| "storage".into()));
+    let root_store = loop {
+        match objects.project_store("default").await {
+            Ok(s) => break s,
+            Err(e) => {
+                eprintln!("waiting for file storage: {}", e.1);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    };
+    match objects::migrate_local(&objects, &local_root, "default").await {
+        Ok(0) => {}
+        Ok(n) => eprintln!("copied {n} local files of the default project to S3 storage"),
+        Err(e) => eprintln!("{}", e.1),
+    }
     let root = AppState::new(
         "default".into(),
         pool.clone(),
         &secret,
-        PathBuf::from(std::env::var("STORAGE_ROOT").unwrap_or_else(|_| "storage".into())),
+        root_store,
+        objects,
         realtime,
         logs::spawn_writer(pool.clone()),
         pool,

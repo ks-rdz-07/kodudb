@@ -17,6 +17,7 @@ tower-http = { version = "0.7", features = ["cors"] }
 futures-util = "0.3"
 tower = { version = "0.5", features = ["util"] }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
+object_store = { version = "0.14", default-features = false, features = ["aws", "fs"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 base64 = "0.22"
 hmac = "0.13"
