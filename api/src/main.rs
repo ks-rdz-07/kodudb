@@ -96,8 +96,28 @@ pub fn project_app(state: AppState) -> Router {
         .with_state(state)
 }
 
+/// `kodudb-api healthcheck`: exit 0 when the local API answers /health with 200. Used by the image's
+/// HEALTHCHECK, so the runtime image needs no curl or wget.
+fn healthcheck() -> i32 {
+    use std::io::{Read, Write};
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8787".into());
+    let probe = || -> std::io::Result<bool> {
+        let addr = format!("127.0.0.1:{port}").parse().map_err(|_| std::io::Error::other("bad PORT"))?;
+        let mut s = std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(3))?;
+        s.set_read_timeout(Some(Duration::from_secs(3)))?;
+        s.write_all(b"GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n")?;
+        let mut head = [0u8; 16];
+        let n = s.read(&mut head)?;
+        Ok(head[..n].starts_with(b"HTTP/1.1 200") || head[..n].starts_with(b"HTTP/1.0 200"))
+    };
+    if matches!(probe(), Ok(true)) { 0 } else { 1 }
+}
+
 #[tokio::main]
 async fn main() {
+    if std::env::args().nth(1).as_deref() == Some("healthcheck") {
+        std::process::exit(healthcheck());
+    }
     // Two rustls crypto backends are compiled in (ring and aws-lc-rs), so rustls cannot pick one by itself;
     // without this, the first TLS connection built with the default provider panics.
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();

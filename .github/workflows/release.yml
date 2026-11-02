@@ -1,13 +1,15 @@
-# After every merge to main: when the version in api/Cargo.toml is new, build the API and console
-# container images, push them to GitHub Packages (ghcr.io) and Docker Hub, and publish a GitHub Release.
-# Docker Hub needs the repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (a Read & Write access
-# token); without them only ghcr.io is used. Run manually with "republish" to push the current version again.
+# After every merge to main: when the version in api/Cargo.toml is new, build the API and console images for
+# linux/amd64 and linux/arm64 (Raspberry Pi, ARM gateways and servers) on native runners, push them to GitHub
+# Packages (ghcr.io) and Docker Hub with SBOM and provenance attestations, tag VERSION, MAJOR.MINOR and latest,
+# and publish a GitHub Release. Docker Hub overviews are synced by dockerhub.yml.
+# Docker Hub needs the repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN; without them only ghcr.io is
+# used. Run manually with "republish" to rebuild and push the current version again.
 name: Release
 
 on:
   push:
     branches: [main]
-    paths-ignore: ["docs/**", "marketing/**", "**/*.md", ".github/ISSUE_TEMPLATE/**"]
+    paths-ignore: ["marketing/**", "**/*.md", ".github/ISSUE_TEMPLATE/**", "docs/images/**", "docs/media/**", "docs/samples/**"]
   workflow_dispatch:
     inputs:
       republish:
@@ -26,11 +28,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      new: ${{ steps.ver.outputs.new }}
+      build: ${{ steps.ver.outputs.build }}
+      dockerhub: ${{ steps.ver.outputs.dockerhub }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,45 +44,128 @@ jobs:
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' api/Cargo.toml | head -1)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          NEW=true
           if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "new=false" >> "$GITHUB_OUTPUT"
+            NEW=false
             echo "::notice::v$VERSION is already released."
-          else
-            echo "new=true" >> "$GITHUB_OUTPUT"
           fi
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+          if [ "$NEW" = true ] || [ "$REPUBLISH" = true ]; then echo "build=true" >> "$GITHUB_OUTPUT"; else echo "build=false" >> "$GITHUB_OUTPUT"; fi
+          if [ -n "$DOCKERHUB_TOKEN" ]; then echo "dockerhub=true" >> "$GITHUB_OUTPUT"; else echo "dockerhub=false" >> "$GITHUB_OUTPUT"; fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push images
-        if: steps.ver.outputs.new == 'true' || inputs.republish
+          REPUBLISH: ${{ inputs.republish }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build:
+    needs: version
+    if: needs.version.outputs.build == 'true'
+    name: Build ${{ matrix.part }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        part: [api, console]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Sign in to registries
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          if [ -n "$DOCKERHUB_TOKEN" ]; then
-            echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin
-          else
-            echo "::notice::DOCKERHUB_TOKEN is not set; pushing to ghcr.io only."
-          fi
-          OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
-          for part in api console; do
-            IMAGES="ghcr.io/$OWNER/kodudb-$part"
-            [ -n "$DOCKERHUB_TOKEN" ] && IMAGES="$IMAGES docker.io/$DOCKERHUB_NAMESPACE/kodudb-$part"
-            TAGS=""
-            for img in $IMAGES; do TAGS="$TAGS -t $img:$VERSION -t $img:latest"; done
-            docker build $TAGS --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" "./$part"
-            for img in $IMAGES; do
-              docker push "$img:$VERSION"
-              docker push "$img:latest"
-            done
-          done
+          if [ "$DOCKERHUB" = true ]; then echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin; fi
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKERHUB: ${{ needs.version.outputs.dockerhub }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push by digest
+        run: |
+          OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          NAMES="ghcr.io/$OWNER/kodudb-$PART"
+          if [ "$DOCKERHUB" = true ]; then NAMES="$NAMES,docker.io/$DOCKERHUB_NAMESPACE/kodudb-$PART"; fi
+          docker buildx build "./$PART" \
+            --platform "linux/$ARCH" \
+            --build-arg "VERSION=$VERSION" --build-arg "REVISION=$GITHUB_SHA" \
+            --build-arg "CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --provenance=mode=max --sbom=true \
+            --output "type=image,\"name=$NAMES\",push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file /tmp/meta.json
+          mkdir -p /tmp/digests
+          DIGEST=$(python3 -c "import json; print(json.load(open('/tmp/meta.json'))['containerimage.digest'])")
+          touch "/tmp/digests/${DIGEST#sha256:}"
+        env:
+          PART: ${{ matrix.part }}
+          ARCH: ${{ matrix.arch }}
+          VERSION: ${{ needs.version.outputs.version }}
+          DOCKERHUB: ${{ needs.version.outputs.dockerhub }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digests-${{ matrix.part }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  manifest:
+    needs: [version, build]
+    name: Tag ${{ matrix.part }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        part: [api, console]
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: digests-${{ matrix.part }}-*
+          merge-multiple: true
+          path: /tmp/digests
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Create multi-architecture tags
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if [ "$DOCKERHUB" = true ]; then echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin; fi
+          OWNER=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          MINOR=$(echo "$VERSION" | cut -d. -f1-2)
+          REPOS="ghcr.io/$OWNER/kodudb-$PART"
+          if [ "$DOCKERHUB" = true ]; then REPOS="$REPOS docker.io/$DOCKERHUB_NAMESPACE/kodudb-$PART"; fi
+          cd /tmp/digests
+          for repo in $REPOS; do
+            docker buildx imagetools create -t "$repo:$VERSION" -t "$repo:$MINOR" -t "$repo:latest" \
+              $(printf "$repo@sha256:%s " *)
+            docker buildx imagetools inspect "$repo:$VERSION" | head -20
+          done
+        env:
+          PART: ${{ matrix.part }}
+          VERSION: ${{ needs.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKERHUB: ${{ needs.version.outputs.dockerhub }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  publish:
+    needs: [version, manifest]
+    if: needs.version.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
       - name: Publish GitHub Release
-        if: steps.ver.outputs.new == 'true'
         run: >
           gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
           --title "KoduDB $VERSION" --generate-notes --prerelease
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ needs.version.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

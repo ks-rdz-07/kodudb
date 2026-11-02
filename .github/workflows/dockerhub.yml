@@ -1,0 +1,30 @@
+# Keeps the Docker Hub short descriptions and overviews in sync with docs/docker/.
+# Needs the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets (the token must be allowed to edit repositories).
+name: Docker Hub overview
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/docker/**", ".github/scripts/dockerhub_overview.py", ".github/workflows/dockerhub.yml"]
+  pull_request:
+    paths: ["docs/docker/**", ".github/scripts/dockerhub_overview.py"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check lengths
+        run: python3 .github/scripts/dockerhub_overview.py --check docs/docker
+      - name: Update Docker Hub
+        if: github.event_name != 'pull_request'
+        run: python3 .github/scripts/dockerhub_overview.py kns777 docs/docker
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
