@@ -24,10 +24,15 @@
 
 # KoduDB
 
-**An open backend platform on Postgres, running on infrastructure you control.**
+**An open backend and real-time data platform for apps and connected devices, on infrastructure you control.**
 Identity, an auto-generated REST API, files, live events, metrics, a change log, external data sources,
 multiple projects with branching, and migrations synced to GitHub. Four containers: Postgres, a Rust API
 (axum + sqlx), a Next.js console and S3-compatible object storage (RustFS).
+
+**Built for IoT, IIoT and embedded data.** Sensors, PLC gateways and controllers write readings straight to
+Postgres and receive commands the moment they are inserted, over a WebSocket filtered by row-level security, so
+every device sees only its own data. Device SDKs for **ESP32, ESP8266, Raspberry Pi and MicroPython boards**
+handle sign-in, token refresh, batching, transactions and reconnects: see [`sdk/embedded`](sdk/embedded).
 
 > [!TIP]
 > **Built and defended by its contributors.** Every contributor is a guardian of KoduDB. Each fix, review, test
@@ -55,6 +60,8 @@ More options (Podman, PM2, Windows Server, Railpack, Nixpacks, buildpacks) are i
 
 ## Why KoduDB
 
+- **Real-time device data.** ESP32, Raspberry Pi and industrial gateways stream readings in and receive commands
+  instantly; row-level security keeps each device to its own rows. SDKs in [`sdk/embedded`](sdk/embedded).
 - **Self-hosted and open source.** Apache-2.0, no telemetry, runs on your own servers or any container platform.
 - **PostgreSQL at the core.** Every project is a real Postgres database you can connect to with any tool.
 - **Authentication built in.** Email and password, two-factor (TOTP), and sign-in with Google, GitHub, Microsoft, Apple, Okta, Keycloak or any OpenID Connect provider.

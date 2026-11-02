@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on Keep a Changelog, and this project uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+- Device SDKs in `sdk/embedded`: a one-file Python client for Raspberry Pi and other Linux boards (CPython) and
+  for Raspberry Pi Pico W and ESP32 (MicroPython), and an Arduino library for ESP32 and ESP8266. Both cover
+  sign-in with token refresh, insert (single and batch), upsert, select, update, delete, RPC transactions and
+  realtime changes with keep-alive and reconnects.
+- README and media kit focus on IoT, IIoT and embedded real-time data; new hero image.
+
 ## [0.2.0]
 
 ### Added

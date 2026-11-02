@@ -65,6 +65,8 @@ jobs:
       # The email, sign-in provider and platform suites start Podman mock servers; run those locally.
       - name: API, two-factor and S3 storage suites
         run: node --test --test-concurrency=1 tests/api.test.mjs tests/mfa.test.mjs tests/storage.test.mjs
+      - name: Device SDK (Python) against the stack
+        run: python3 sdk/embedded/python/test_kodudb.py
       - name: Stack logs
         if: failure()
         run: docker compose logs --tail 200

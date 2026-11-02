@@ -34,3 +34,6 @@ crash.log
 # Your own variable files (envs/*.tfvars are committed examples)
 *.local.tfvars
 my.tfvars
+# Python
+__pycache__/
+*.py[cod]
