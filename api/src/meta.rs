@@ -49,7 +49,7 @@ pub async fn catalog(State(st): State<AppState>, headers: HeaderMap, Path(kind):
         .find(|(k, _)| *k == kind)
         .map(|(_, s)| *s)
         .ok_or_else(|| err(StatusCode::NOT_FOUND, format!("unknown catalog: {kind}")))?;
-    let out: String = sqlx::query_scalar(&format!("select coalesce(jsonb_agg(x), '[]')::text from ({sql}) x"))
+    let out: String = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("select coalesce(jsonb_agg(x), '[]')::text from ({sql}) x")))
         .fetch_one(&st.pool)
         .await?;
     Ok(json_response(out))
@@ -83,7 +83,7 @@ pub struct SqlReq {
 pub async fn query(State(st): State<AppState>, headers: HeaderMap, Json(b): Json<SqlReq>) -> R<Json<Value>> {
     require_service(&st.claims(&headers, None)?)?;
     let started = std::time::Instant::now();
-    let rows = sqlx::raw_sql(&b.query).fetch_all(&st.pool).await;
+    let rows = sqlx::raw_sql(sqlx::AssertSqlSafe(b.query.as_str())).fetch_all(&st.pool).await;
     // Any statement may have changed a table's shape: the REST API re-reads columns on its next request.
     st.columns.lock().unwrap().clear();
     let rows = rows?;

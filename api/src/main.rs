@@ -96,6 +96,9 @@ pub fn project_app(state: AppState) -> Router {
 
 #[tokio::main]
 async fn main() {
+    // Two rustls crypto backends are compiled in (ring and aws-lc-rs), so rustls cannot pick one by itself;
+    // without this, the first TLS connection built with the default provider panics.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let opts = PgConnectOptions::from_str(&env("DATABASE_URL")).expect("DATABASE_URL");
 
     let pool = loop {

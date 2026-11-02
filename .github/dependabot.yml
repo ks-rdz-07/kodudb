@@ -8,6 +8,10 @@ updates:
     directory: "/console"
     schedule:
       interval: "weekly"
+    ignore:
+      # Types follow the oldest supported Node.js (package.json engines), not the newest.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "npm"
     directory: "/marketing"
     schedule:

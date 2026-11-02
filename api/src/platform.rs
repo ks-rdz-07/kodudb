@@ -177,12 +177,12 @@ impl Registry {
             e => e.into(),
         })?;
         let created = match parent {
-            None => sqlx::query(&format!("create database \"{db}\"")).execute(&self.root.platform).await,
+            None => sqlx::query(sqlx::AssertSqlSafe(format!("create database \"{db}\""))).execute(&self.root.platform).await,
             Some(p) => {
                 // CREATE DATABASE ... TEMPLATE needs the source to have no other sessions.
                 self.unload(&p.slug).await;
                 self.terminate_connections(&p.db_name).await?;
-                sqlx::query(&format!("create database \"{db}\" template \"{}\"", p.db_name)).execute(&self.root.platform).await
+                sqlx::query(sqlx::AssertSqlSafe(format!("create database \"{db}\" template \"{}\"", p.db_name))).execute(&self.root.platform).await
             }
         };
         if let Err(e) = created {
@@ -212,7 +212,7 @@ impl Registry {
         let row = self.project(slug).await?;
         self.unload(slug).await;
         let unloaded = t.elapsed();
-        sqlx::query(&format!("drop database if exists \"{}\" with (force)", row.db_name)).execute(&self.root.platform).await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!("drop database if exists \"{}\" with (force)", row.db_name))).execute(&self.root.platform).await?;
         let dropped = t.elapsed();
         sqlx::query("delete from platform.projects where slug = $1").bind(slug).execute(&self.root.platform).await?;
         crate::owner::drop_owner(&self.root.platform, slug).await;
@@ -234,7 +234,7 @@ impl Registry {
         // connection and silently disable every trigger (live events, change log) for later requests.
         let default_upgrade = async {
             let pool = PgPoolOptions::new().max_connections(1).connect_with(self.opts.clone()).await?;
-            let r = sqlx::raw_sql(&upgrade).execute(&pool).await;
+            let r = sqlx::raw_sql(sqlx::AssertSqlSafe(upgrade.as_str())).execute(&pool).await;
             pool.close().await;
             r.map(|_| ())
         }
@@ -252,7 +252,7 @@ impl Registry {
         for (slug, db) in rows {
             let upgraded = async {
                 let pool = PgPoolOptions::new().max_connections(1).connect_with(self.opts.clone().database(&db)).await?;
-                let r = sqlx::raw_sql(&upgrade).execute(&pool).await;
+                let r = sqlx::raw_sql(sqlx::AssertSqlSafe(upgrade.as_str())).execute(&pool).await;
                 pool.close().await;
                 r.map(|_| ())
             }
@@ -429,7 +429,7 @@ async fn extension(State(reg): State<Arc<Registry>>, headers: HeaderMap, Path(sl
         // The name matched pg_available_extensions, so quoting it is enough.
         let q = b.name.replace('"', "\"\"");
         let sql = if b.enabled { format!("create extension if not exists \"{q}\"") } else { format!("drop extension if exists \"{q}\"") };
-        sqlx::query(&sql).execute(&pool).await?;
+        sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).execute(&pool).await?;
         Ok(json!({ "name": b.name, "enabled": b.enabled }))
     }
     .await;

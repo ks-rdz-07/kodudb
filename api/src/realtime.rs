@@ -130,7 +130,7 @@ async fn check(st: &AppState, c: &Value, table: &str, ev: &Value) -> bool {
     }
     let id = id.as_str().map(str::to_string).unwrap_or_else(|| id.to_string());
     let Ok(mut tx) = scoped(&st.pool, c).await else { return false };
-    let seen: Result<bool, _> = sqlx::query_scalar(&format!("select exists(select 1 from public.\"{table}\" where id::text = $1)"))
+    let seen: Result<bool, _> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("select exists(select 1 from public.\"{table}\" where id::text = $1)")))
         .bind(id)
         .fetch_one(&mut *tx)
         .await;
