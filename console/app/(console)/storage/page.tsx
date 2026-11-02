@@ -12,7 +12,8 @@ type S3Access =
   | { backend: 's3'; provider?: string; secret_set?: boolean; endpoint: string; region: string; bucket: string; access_key: string | null; secret_key: string | null; console_url: string | null; key_error?: string }
 type Obj = { id: string; name: string; size: number; mimetype: string | null; created_at: string }
 
-const objPath = (bucket: string, name: string) => `storage/v1/object/${bucket}/${name.split('/').map(encodeURIComponent).join('/')}`
+const encodeName = (name: string) => name.split('/').map(encodeURIComponent).join('/')
+const objPath = (bucket: string, name: string) => `storage/v1/object/${bucket}/${encodeName(name)}`
 
 export default function Files() {
   const buckets = useLoad(() => kodu<Bucket[]>('storage/v1/bucket'))
@@ -21,8 +22,8 @@ export default function Files() {
   const [access, setAccess] = useState(false)
   const [providerOpen, setProviderOpen] = useState(false)
   const storage = useLoad(async () => {
-    const { slug } = (await (await fetch('/api/project')).json()) as { slug: string }
-    return { slug, ...(await kodu<S3Access>(`platform/v1/projects/${slug}/storage`)) }
+    const { slug, endpoint: apiUrl } = (await (await fetch('/api/project')).json()) as { slug: string; endpoint: string }
+    return { slug, apiUrl, ...(await kodu<S3Access>(`platform/v1/projects/${slug}/storage`)) }
   })
   const bucket = buckets.data?.find((b) => b.id === (active ?? buckets.data?.[0]?.id)) ?? null
 
@@ -53,7 +54,7 @@ export default function Files() {
           {buckets.data?.length === 0 && <Empty>No buckets yet.</Empty>}
         </nav>
         <section className="min-w-0">
-          {bucket && <FileList key={bucket.id} bucket={bucket} onChanged={buckets.reload} onDeleted={() => { setActive(null); buckets.reload() }} />}
+          {bucket && <FileList apiUrl={storage.data?.apiUrl ?? ''} key={bucket.id} bucket={bucket} onChanged={buckets.reload} onDeleted={() => { setActive(null); buckets.reload() }} />}
         </section>
       </div>
       {storage.data?.backend === 's3' && <S3AccessDialog open={access} onClose={() => setAccess(false)} info={storage.data} onRotated={storage.reload} />}
@@ -63,7 +64,7 @@ export default function Files() {
   )
 }
 
-function FileList({ bucket, onChanged, onDeleted }: { bucket: Bucket; onChanged: () => void; onDeleted: () => void }) {
+function FileList({ apiUrl, bucket, onChanged, onDeleted }: { apiUrl: string; bucket: Bucket; onChanged: () => void; onDeleted: () => void }) {
   const [prefix, setPrefix] = useState('')
   const files = useLoad(() => kodu<Obj[]>(`storage/v1/object/list/${bucket.id}`, json('POST', { prefix })), [prefix])
   const [busy, setBusy] = useState(false)
@@ -149,7 +150,7 @@ function FileList({ bucket, onChanged, onDeleted }: { bucket: Bucket; onChanged:
                     <DropdownMenu.Content align="end">
                       <DropdownMenu.Item onSelect={() => download(o)}><Download size={14} />Download</DropdownMenu.Item>
                       {bucket.public && (
-                        <DropdownMenu.Item onSelect={() => navigator.clipboard.writeText(`/storage/v1/object/public/${bucket.id}/${o.name}`).then(() => toast('Public path copied'))}><Link2 size={14} />Copy public path</DropdownMenu.Item>
+                        <DropdownMenu.Item onSelect={() => navigator.clipboard.writeText(`${apiUrl}/storage/v1/object/public/${encodeURIComponent(bucket.id)}/${encodeName(o.name)}`).then(() => toast('Public link copied'))}><Link2 size={14} />Copy public link</DropdownMenu.Item>
                       )}
                       <DropdownMenu.Separator />
                       <DropdownMenu.Item color="red" onSelect={async () => {
